@@ -1,0 +1,91 @@
+{
+  "pet": "lazy_fish",
+  "canvas": {
+    "width": 420,
+    "height": 420
+  },
+  "frameCount": 12,
+  "durationMs": 95,
+  "actions": [
+    {
+      "id": "idle",
+      "label": "Idle / breathing",
+      "normalGif": "normal/gifs/idle.gif",
+      "pixelGif": "pixel/gifs/idle.gif",
+      "normalStrip": "normal/strips/idle.png",
+      "pixelStrip": "pixel/strips/idle.png"
+    },
+    {
+      "id": "work_desk",
+      "label": "Desk work",
+      "normalGif": "normal/gifs/work_desk.gif",
+      "pixelGif": "pixel/gifs/work_desk.gif",
+      "normalStrip": "normal/strips/work_desk.png",
+      "pixelStrip": "pixel/strips/work_desk.png"
+    },
+    {
+      "id": "coffee",
+      "label": "Drink coffee",
+      "normalGif": "normal/gifs/coffee.gif",
+      "pixelGif": "pixel/gifs/coffee.gif",
+      "normalStrip": "normal/strips/coffee.png",
+      "pixelStrip": "pixel/strips/coffee.png"
+    },
+    {
+      "id": "burger",
+      "label": "Eat burger",
+      "normalGif": "normal/gifs/burger.gif",
+      "pixelGif": "pixel/gifs/burger.gif",
+      "normalStrip": "normal/strips/burger.png",
+      "pixelStrip": "pixel/strips/burger.png"
+    },
+    {
+      "id": "phone",
+      "label": "Play phone",
+      "normalGif": "normal/gifs/phone.gif",
+      "pixelGif": "pixel/gifs/phone.gif",
+      "normalStrip": "normal/strips/phone.png",
+      "pixelStrip": "pixel/strips/phone.png"
+    },
+    {
+      "id": "walk",
+      "label": "Walk",
+      "normalGif": "normal/gifs/walk.gif",
+      "pixelGif": "pixel/gifs/walk.gif",
+      "normalStrip": "normal/strips/walk.png",
+      "pixelStrip": "pixel/strips/walk.png"
+    },
+    {
+      "id": "lie",
+      "label": "Lie down",
+      "normalGif": "normal/gifs/lie.gif",
+      "pixelGif": "pixel/gifs/lie.gif",
+      "normalStrip": "normal/strips/lie.png",
+      "pixelStrip": "pixel/strips/lie.png"
+    },
+    {
+      "id": "sleep",
+      "label": "Sleep",
+      "normalGif": "normal/gifs/sleep.gif",
+      "pixelGif": "pixel/gifs/sleep.gif",
+      "normalStrip": "normal/strips/sleep.png",
+      "pixelStrip": "pixel/strips/sleep.png"
+    },
+    {
+      "id": "wave",
+      "label": "Wave",
+      "normalGif": "normal/gifs/wave.gif",
+      "pixelGif": "pixel/gifs/wave.gif",
+      "normalStrip": "normal/strips/wave.png",
+      "pixelStrip": "pixel/strips/wave.png"
+    },
+    {
+      "id": "focus",
+      "label": "Focused work",
+      "normalGif": "normal/gifs/focus.gif",
+      "pixelGif": "pixel/gifs/focus.gif",
+      "normalStrip": "normal/strips/focus.png",
+      "pixelStrip": "pixel/strips/focus.png"
+    }
+  ]
+}

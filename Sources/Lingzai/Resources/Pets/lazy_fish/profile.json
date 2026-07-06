@@ -1,0 +1,80 @@
+{
+  "petId": "lazy_fish",
+  "displayName": "摆摆鱼",
+  "defaultAction": "idle_stand",
+  "pixelCanvasWidth": 160,
+  "pixelCanvasHeight": 192,
+  "scale": 3,
+  "animations": {
+    "idle_stand": {
+      "fps": 5,
+      "loop": true,
+      "interruptible": true,
+      "holdLastFrame": false,
+      "frameCount": 6
+    },
+    "desk_work": {
+      "fps": 6,
+      "loop": true,
+      "interruptible": true,
+      "holdLastFrame": false,
+      "frameCount": 8
+    },
+    "drink_coffee": {
+      "fps": 6,
+      "loop": false,
+      "interruptible": false,
+      "holdLastFrame": false,
+      "frameCount": 6
+    },
+    "eat_burger": {
+      "fps": 6,
+      "loop": false,
+      "interruptible": false,
+      "holdLastFrame": false,
+      "frameCount": 6
+    },
+    "play_phone": {
+      "fps": 5,
+      "loop": true,
+      "interruptible": true,
+      "holdLastFrame": false,
+      "frameCount": 8
+    },
+    "walk": {
+      "fps": 8,
+      "loop": true,
+      "interruptible": true,
+      "holdLastFrame": false,
+      "frameCount": 8
+    },
+    "lie_down": {
+      "fps": 5,
+      "loop": false,
+      "interruptible": true,
+      "holdLastFrame": true,
+      "frameCount": 6
+    },
+    "sleep": {
+      "fps": 4,
+      "loop": true,
+      "interruptible": true,
+      "holdLastFrame": false,
+      "frameCount": 8
+    },
+    "wave": {
+      "fps": 7,
+      "loop": false,
+      "interruptible": false,
+      "holdLastFrame": false,
+      "frameCount": 6
+    },
+    "shocked": {
+      "fps": 8,
+      "loop": false,
+      "interruptible": false,
+      "holdLastFrame": false,
+      "frameCount": 4
+    }
+  }
+}
