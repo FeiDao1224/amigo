@@ -87,11 +87,13 @@ struct PetView: View {
         }
         .contentShape(Circle())
         .onTapGesture { onSpeak() }
-        .onLongPressGesture(minimumDuration: 0.35) { onChat() }
         .highPriorityGesture(
             DragGesture(minimumDistance: 6)
                 .onChanged { _ in onDrag(false) }
                 .onEnded { _ in onDrag(true) }
+        )
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.4).onEnded { _ in onChat() }
         )
         .contextMenu {
             Button("摸摸头 🐾") { onSpeak() }

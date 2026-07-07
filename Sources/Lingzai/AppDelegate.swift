@@ -58,6 +58,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupPetPanel()
         startCursorTracking()
         maybeMorningGreeting()
+        // 启动就冒个云气泡，让你立刻看到新气泡 + 知道长按能说话
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.runtime.showBubble("长按我，就能跟我说话～")
+        }
 
         let e = BehaviorEngine(runtime: runtime)
         e.isEnabled = { [weak self] in (self?.state.config.proactive ?? false) && !(self?.state.config.stealth ?? false) && !(self?.state.focusing ?? false) }
