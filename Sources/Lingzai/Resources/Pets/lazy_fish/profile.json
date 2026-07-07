@@ -4,7 +4,7 @@
   "defaultAction": "idle_stand",
   "pixelCanvasWidth": 160,
   "pixelCanvasHeight": 192,
-  "scale": 3,
+  "scale": 1,
   "animations": {
     "idle_stand": {
       "fps": 5,

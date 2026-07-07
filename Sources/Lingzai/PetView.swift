@@ -112,7 +112,7 @@ struct PetView: View {
         if rt.animator.currentFrame != nil {
             AnimatedPetImage(animator: rt.animator)
         } else if let img = PetImages.image(rt.characterImageName) {
-            Image(nsImage: img).resizable().scaledToFit()
+            Image(nsImage: img).resizable().interpolation(.none).scaledToFit()
                 .frame(width: 80, height: 125)
                 .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
         } else {

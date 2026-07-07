@@ -53,6 +53,16 @@ final class AppState: ObservableObject {
     var onCharacterChanged: ((String) -> Void)?
     func setCharacter(_ id: String) { config.character = id; persist(); onCharacterChanged?(id) }
 
+    /// 自定义形象：把用户选的图像素化，存成 custom.png 并设为当前桌宠
+    @discardableResult
+    func setCustomPet(from image: NSImage, rows: Int, levels: Int, flood: Bool) -> Bool {
+        let url = PetImages.dir.appendingPathComponent("custom.png")
+        guard Pixelizer.writePNG(image, to: url, rows: rows, levels: levels, scale: 3, flood: flood) else { return false }
+        PetImages.clearCache()
+        setCharacter("custom")
+        return true
+    }
+
     // MARK: 长期记忆
     func addMemory(content: String, category: String, longTerm: Bool) {
         let c = content.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -1,10 +1,89 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 private struct NavItem: Identifiable {
     let key, title, subtitle, icon: String
     let color: Color
     var id: String { key }
+}
+
+// 自定义形象：选图 → 像素化预览 → 设为桌宠
+private struct CustomPetCard: View {
+    @ObservedObject var state: AppState
+    @State private var source: NSImage?
+    @State private var preview: NSImage?
+    @State private var level: Double = 0.5
+    @State private var flood = false
+
+    private var rows: Int { Int((110 - level * 46).rounded()) }   // 0→110精细 .. 1→64块状
+    private var levels: Int { level > 0.6 ? 4 : 5 }
+
+    var body: some View {
+        GroupCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.06))
+                        if let p = preview {
+                            Image(nsImage: p).resizable().interpolation(.none).scaledToFit().padding(6)
+                        } else {
+                            VStack(spacing: 5) {
+                                Image(systemName: "photo.badge.plus").font(.title2).foregroundStyle(.secondary)
+                                Text("选张图\n变像素桌宠").font(.system(size: 10))
+                                    .multilineTextAlignment(.center).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .frame(width: 96, height: 120)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("自定义形象").font(.system(size: 13, weight: .semibold))
+                        Text("选一张图（自拍 / 喜欢的角色 / 表情包），自动像素化成你的专属桌宠。")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button { pick() } label: { Label("选择图片…", systemImage: "photo.on.rectangle") }
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                if source != nil {
+                    HStack(spacing: 12) {
+                        Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Slider(value: $level, in: 0...1) { editing in if !editing { rebuild() } }
+                        Toggle("去白底", isOn: $flood).toggleStyle(.checkbox)
+                            .font(.system(size: 11)).onChange(of: flood) { _ in rebuild() }
+                    }
+                    HStack {
+                        Text("像素化在本机完成，图片不会上传。")
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("设为桌宠") {
+                            if let s = source { state.setCustomPet(from: s, rows: rows, levels: levels, flood: flood) }
+                        }
+                        .buttonStyle(.borderedProminent).disabled(preview == nil)
+                    }
+                }
+            }
+            .padding(14)
+        }
+    }
+
+    private func rebuild() {
+        guard let s = source else { return }
+        preview = Pixelizer.pixelize(s, rows: rows, levels: levels, scale: 3, flood: flood)
+    }
+
+    private func pick() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url, let img = NSImage(contentsOf: url) {
+            source = img
+            rebuild()
+        }
+    }
 }
 
 struct SettingsView: View {
@@ -133,9 +212,14 @@ struct SettingsView: View {
                         Text("摸鱼鱼").tag("lazy_fish")
                         Text("看表鱼").tag("anxious_fish")
                         Text("震惊鱼").tag("shocked_fish")
+                        if FileManager.default.fileExists(atPath: PetImages.dir.appendingPathComponent("custom.png").path) {
+                            Text("我的形象").tag("custom")
+                        }
                     }.labelsHidden().frame(width: 150)
                 }
             }
+            SectionHeader("自定义形象")
+            CustomPetCard(state: state)
             SectionHeader("展示模式")
             HStack(spacing: 12) {
                 modeCard("桌面悬浮", "贴在桌面右下角，可拖动", selected: true)
