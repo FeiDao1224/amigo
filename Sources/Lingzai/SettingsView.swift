@@ -236,14 +236,15 @@ private struct ProPane: View {
     }
 }
 
-// 自定义形象：选图 → 像素化预览 → 设为桌宠（Pro）
+// 自定义形象：选/拖图 → 自动抠背景 + 像素化 → 设为桌宠
 private struct CustomPetCard: View {
     @ObservedObject var state: AppState
     var onUpgrade: () -> Void = {}
     @State private var source: NSImage?
     @State private var preview: NSImage?
     @State private var level: Double = 0.5
-    @State private var flood = false
+    @State private var cutout = true
+    @State private var working = false
 
     private var rows: Int { Int((110 - level * 46).rounded()) }   // 0→110精细 .. 1→64块状
     private var levels: Int { level > 0.6 ? 4 : 5 }
@@ -259,16 +260,18 @@ private struct CustomPetCard: View {
                         } else {
                             VStack(spacing: 5) {
                                 Image(systemName: "photo.badge.plus").font(.title2).foregroundStyle(.secondary)
-                                Text("选张图\n变像素桌宠").font(.system(size: 10))
+                                Text("选图 / 拖图\n变像素桌宠").font(.system(size: 10))
                                     .multilineTextAlignment(.center).foregroundStyle(.secondary)
                             }
                         }
+                        if working { ProgressView().controlSize(.small) }
                     }
                     .frame(width: 96, height: 120)
+                    .onDrop(of: [.image, .fileURL], isTargeted: nil) { loadDropped($0) }
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("自定义形象").font(.system(size: 13, weight: .semibold))
-                        Text("选一张图（自拍 / 喜欢的角色 / 表情包），自动像素化成你的专属桌宠。")
+                        Text("选一张图（自拍 / 喜欢的角色 / 表情包）或直接拖进左边框，自动抠掉背景 + 像素化成你的专属桌宠。")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         Button { pick() } label: { Label("选择图片…", systemImage: "photo.on.rectangle") }
@@ -280,22 +283,16 @@ private struct CustomPetCard: View {
                     HStack(spacing: 12) {
                         Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
                         Slider(value: $level, in: 0...1) { editing in if !editing { rebuild() } }
-                        Toggle("去白底", isOn: $flood).toggleStyle(.checkbox)
-                            .font(.system(size: 11)).onChange(of: flood) { _ in rebuild() }
+                        Toggle("自动抠背景", isOn: $cutout).toggleStyle(.checkbox)
+                            .font(.system(size: 11)).onChange(of: cutout) { _ in rebuild() }
                     }
                     HStack {
-                        Text("像素化在本机完成，图片不会上传。")
+                        Text("抠图 + 像素化都在本机完成，图片不会上传。")
                             .font(.system(size: 10)).foregroundStyle(.secondary)
                         Spacer()
-                        if state.licensed {
-                            Button("设为桌宠") {
-                                if let s = source { state.setCustomPet(from: s, rows: rows, levels: levels, flood: flood) }
-                            }
-                            .buttonStyle(.borderedProminent).disabled(preview == nil)
-                        } else {
-                            Button { onUpgrade() } label: { Label("Pro 解锁", systemImage: "crown.fill") }
-                                .buttonStyle(.borderedProminent).tint(.orange)
-                        }
+                        Button("设为桌宠") {
+                            if let s = source { state.setCustomPet(from: s, rows: rows, levels: levels, cutout: cutout) }
+                        }.buttonStyle(.borderedProminent).disabled(preview == nil)
                     }
                 }
             }
@@ -305,7 +302,12 @@ private struct CustomPetCard: View {
 
     private func rebuild() {
         guard let s = source else { return }
-        preview = Pixelizer.pixelize(s, rows: rows, levels: levels, scale: 3, flood: flood)
+        working = true
+        let (r, l, c) = (rows, levels, cutout)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let out = Pixelizer.pixelize(s, rows: r, levels: l, scale: 3, cutout: c)
+            DispatchQueue.main.async { preview = out; working = false }
+        }
     }
 
     private func pick() {
@@ -314,9 +316,25 @@ private struct CustomPetCard: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         if panel.runModal() == .OK, let url = panel.url, let img = NSImage(contentsOf: url) {
-            source = img
-            rebuild()
+            source = img; rebuild()
         }
+    }
+
+    private func loadDropped(_ providers: [NSItemProvider]) -> Bool {
+        guard let p = providers.first else { return false }
+        if p.canLoadObject(ofClass: NSImage.self) {
+            _ = p.loadObject(ofClass: NSImage.self) { obj, _ in
+                if let img = obj as? NSImage { DispatchQueue.main.async { source = img; rebuild() } }
+            }
+            return true
+        }
+        p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+            var url: URL?
+            if let d = item as? Data { url = URL(dataRepresentation: d, relativeTo: nil) }
+            else if let u = item as? URL { url = u }
+            if let url, let img = NSImage(contentsOf: url) { DispatchQueue.main.async { source = img; rebuild() } }
+        }
+        return true
     }
 }
 

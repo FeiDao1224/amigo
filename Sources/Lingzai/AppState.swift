@@ -71,9 +71,9 @@ final class AppState: ObservableObject {
 
     /// 自定义形象：把用户选的图像素化，存成 custom.png 并设为当前桌宠
     @discardableResult
-    func setCustomPet(from image: NSImage, rows: Int, levels: Int, flood: Bool) -> Bool {
+    func setCustomPet(from image: NSImage, rows: Int, levels: Int, cutout: Bool) -> Bool {
         let url = PetImages.dir.appendingPathComponent("custom.png")
-        guard Pixelizer.writePNG(image, to: url, rows: rows, levels: levels, scale: 3, flood: flood) else { return false }
+        guard Pixelizer.writePNG(image, to: url, rows: rows, levels: levels, scale: 3, cutout: cutout) else { return false }
         PetImages.clearCache()
         setCharacter("custom")
         return true
