@@ -21,20 +21,42 @@ final class AppState: ObservableObject {
 
     init() {
         config = ConfigStore.load(); memories = MemoryStore.load(); tasks = TodoStore.load()
-        licensed = License.verify(email: config.licenseEmail, code: config.licenseCode)
+        if config.deviceId.isEmpty { config.deviceId = UUID().uuidString }
+        if config.installedAt == nil { config.installedAt = Date().timeIntervalSince1970 }
+        ConfigStore.save(config)
+        licensed = config.licenseActivated && !licenseExpired
     }
 
-    // MARK: 激活 / Pro
-    /// 校验邮箱+激活码，通过则记住并解锁
-    @discardableResult
-    func activate(email: String, code: String) -> Bool {
-        guard License.verify(email: email, code: code) else { return false }
-        config.licenseEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        config.licenseCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        persist(); licensed = true
-        return true
+    // MARK: 激活 / 试用（服务器激活，后台自托管）
+    let trialDays = 7
+    var trialEndsAt: Date { Date(timeIntervalSince1970: config.installedAt ?? Date().timeIntervalSince1970).addingTimeInterval(Double(trialDays) * 86400) }
+    var withinTrial: Bool { Date() < trialEndsAt }
+    var trialDaysLeft: Int { max(0, Int(ceil(trialEndsAt.timeIntervalSinceNow / 86400))) }
+    var licenseExpired: Bool { if let e = config.licenseExpiresAt { return Date().timeIntervalSince1970 * 1000 > e }; return false }
+    /// 能不能用：已激活(未过期) 或 试用期内
+    var entitled: Bool { (licensed && !licenseExpired) || withinTrial }
+
+    /// 输入激活码 → 服务器激活并绑定本机；返回 "" 成功，否则错误文案
+    @MainActor
+    func activate(code: String) async -> String {
+        let c = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !c.isEmpty else { return "先填激活码" }
+        let r = await License.call("/api/activate", code: c, device: config.deviceId)
+        if r.ok {
+            config.licenseCode = c; config.licenseActivated = true; config.licenseExpiresAt = r.expiresAt
+            licensed = true; persist(); return ""
+        }
+        return r.error == "__offline__" ? "连不上激活服务器" : (r.error ?? "激活失败")
     }
-    func deactivate() { config.licenseEmail = ""; config.licenseCode = ""; persist(); licensed = false }
+    func deactivate() { config.licenseCode = ""; config.licenseActivated = false; config.licenseExpiresAt = nil; persist(); licensed = false }
+    /// 启动时复验（服务器可吊销/到期）；连不上则保持本地缓存宽限
+    @MainActor
+    func revalidate() async {
+        guard !config.licenseCode.isEmpty else { return }
+        let r = await License.call("/api/validate", code: config.licenseCode, device: config.deviceId)
+        if r.error == "__offline__" { return }
+        licensed = r.ok; config.licenseActivated = r.ok; config.licenseExpiresAt = r.expiresAt; persist()
+    }
 
     func activeProvider() -> Provider? {
         config.providers.first { $0.id == config.activeId } ?? config.providers.first
@@ -156,8 +178,8 @@ final class AppState: ObservableObject {
         try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
         memories = []; tasks = []
         config.customCard = nil; config.personas = [:]; config.customActions = []
-        config.character = "cat"; persist()
-        PetImages.clearCache(); onCharacterChanged?("cat")
+        config.character = "anxious_fish"; persist()
+        PetImages.clearCache(); onCharacterChanged?("anxious_fish")
     }
 
     // MARK: AI 动作动画（直连你配置的模型端点，无需本地服务）

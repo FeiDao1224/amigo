@@ -67,11 +67,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         maybeMorningGreeting()
         // 启动就冒个云气泡，让你立刻看到新气泡 + 知道长按能说话
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            self?.runtime.showBubble("长按我，就能跟我说话～")
+            guard let self else { return }
+            self.runtime.showBubble(self.state.entitled ? "长按我，就能跟我说话～"
+                : "试用已到期，去 设置→关于 激活就能继续用～")
         }
+        Task { await state.revalidate() }   // 启动向激活服务器复验（可吊销/到期）
 
         let e = BehaviorEngine(runtime: runtime)
-        e.isEnabled = { [weak self] in (self?.state.config.proactive ?? false) && !(self?.state.config.stealth ?? false) && !(self?.state.focusing ?? false) }
+        e.isEnabled = { [weak self] in (self?.state.entitled ?? false) && (self?.state.config.proactive ?? false) && !(self?.state.config.stealth ?? false) && !(self?.state.focusing ?? false) }
         e.isPetVisible = { [weak self] in self?.petPanel?.isVisible ?? false }
         e.start()
         engine = e
@@ -258,6 +261,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     private func executeClick(_ key: String) {
+        if !state.entitled && key != "settings" && key != "menu" {
+            runtime.showBubble("试用到期啦，去 设置→关于 激活就能继续用～")
+            return
+        }
         switch key {
         case "", "none": break
         case "speak":    runtime.speak()

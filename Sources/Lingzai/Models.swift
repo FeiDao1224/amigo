@@ -20,9 +20,12 @@ struct Config: Codable {
     var petX: Double? = nil             // 记住宠物位置
     var petY: Double? = nil
     var stealth: Bool = false           // 隐身模式：暂停观察与主动打扰
-    var character: String = "cat"       // 宠物形象：cat / lazy_fish / anxious_fish / shocked_fish
-    var licenseEmail: String = ""       // 激活：买家邮箱
-    var licenseCode: String = ""        // 激活：离线签名激活码
+    var character: String = "anxious_fish"   // 默认形象：看表鱼
+    var licenseCode: String = ""             // 激活码
+    var licenseActivated = false             // 已激活(服务器确认)
+    var licenseExpiresAt: Double? = nil       // 到期 epoch ms（null=永久）
+    var deviceId: String = ""                // 本机标识（激活绑定）
+    var installedAt: Double? = nil            // 首次安装 epoch s（试用期起算）
     var activeAction: String = "idle"   // 当前播放的 AI 生成动作（行为驱动关闭时用）
     var behaviorDriven: Bool = true     // 行为驱动：按交互自动切动作
     var mapSlow: String = "walk"        // 慢速拖动 → 走

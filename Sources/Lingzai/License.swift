@@ -1,21 +1,27 @@
 import Foundation
-import CryptoKit
 
-/// 离线授权：卖家用私钥给"买家邮箱"签名生成激活码；此处用内嵌公钥验签。无需服务器。
-/// 出码见 tools/gen-license.swift（私钥在 tools/license-private.key，切勿泄露/入库）。
+/// 服务器激活：调你自托管的激活服务（license-server）。激活码 + 设备绑定 + 可吊销 + 到期。
+/// 部署后把 serverBase 改成你的地址（本机测试用 http://localhost:8787）。
 enum License {
-    /// 公钥（Curve25519，base64）。换密钥对时用 `gen-license.swift keygen` 的 PUBLIC 覆盖这里。
-    private static let publicKeyB64 = "mZKD0LQCEmTxiU6+Lfbme+whut54BQ1lFlt46NSoLBw="
+    static let serverBase = "http://localhost:8787"
 
-    /// 校验"邮箱 + 激活码"是否匹配（激活码 = 用私钥对小写邮箱的签名）
-    static func verify(email: String, code: String) -> Bool {
-        let e = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let c = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !e.isEmpty, !c.isEmpty,
-              let pkData = Data(base64Encoded: publicKeyB64),
-              let sig = Data(base64Encoded: c),
-              let pk = try? Curve25519.Signing.PublicKey(rawRepresentation: pkData)
-        else { return false }
-        return pk.isValidSignature(sig, for: Data(e.utf8))
+    struct Result {
+        let ok: Bool
+        let expiresAt: Double?     // epoch ms，nil=永久
+        let error: String?         // "__offline__" = 网络失败（宽限用）
+    }
+
+    static func call(_ path: String, code: String, device: String) async -> Result {
+        guard let url = URL(string: serverBase + path) else { return Result(ok: false, expiresAt: nil, error: "激活服务器地址无效") }
+        var req = URLRequest(url: url); req.httpMethod = "POST"; req.timeoutInterval = 12
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["code": code, "device": device])
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            let j = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+            return Result(ok: j["ok"] as? Bool ?? false, expiresAt: j["expiresAt"] as? Double, error: j["error"] as? String)
+        } catch {
+            return Result(ok: false, expiresAt: nil, error: "__offline__")
+        }
     }
 }

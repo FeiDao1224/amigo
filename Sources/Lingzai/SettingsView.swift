@@ -166,7 +166,7 @@ private struct CharacterPicker: View {
         if FileManager.default.fileExists(atPath: PetImages.dir.appendingPathComponent("custom.png").path) {
             a.append(("custom", "我的形象"))          // 自定义形象置顶
         }
-        a += [("cat", "默认小猫"), ("lazy_fish", "摸鱼鱼"), ("anxious_fish", "看表鱼"), ("shocked_fish", "震惊鱼")]
+        a += [("anxious_fish", "看表鱼"), ("lazy_fish", "摸鱼鱼"), ("shocked_fish", "震惊鱼")]
         return a
     }
     var body: some View {
@@ -182,57 +182,57 @@ private struct CharacterPicker: View {
     }
 }
 
-// Pro 激活页：离线邮箱+激活码验签解锁
+// 激活页（服务器激活 + 试用状态）
 private struct ProPane: View {
     @ObservedObject var state: AppState
-    @State private var email = ""
     @State private var code = ""
-    @State private var failed = false
+    @State private var busy = false
+    @State private var msg = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("Pro · 解锁全部")
-            if state.licensed {
-                GroupCard {
-                    GRow(title: "已激活 ✓", subtitle: "感谢支持！Pro 已全部解锁（\(state.config.licenseEmail)）") {
-                        Button("注销") { state.deactivate(); email = ""; code = ""; failed = false }
+            SectionHeader("激活")
+            GroupCard {
+                if state.licensed && !state.licenseExpired {
+                    GRow(title: "已激活 ✓", subtitle: expiryText) {
+                        Button("注销") { state.deactivate(); code = ""; msg = "" }.controlSize(.small)
                     }
-                }
-            } else {
-                GroupCard {
+                } else {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("输入购买时用的邮箱和收到的激活码").font(.system(size: 12)).foregroundStyle(.secondary)
-                        TextField("邮箱", text: $email).textFieldStyle(.roundedBorder)
-                        TextField("激活码", text: $code, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...4)
+                        Text(trialText).font(.system(size: 12)).foregroundStyle(state.entitled ? Color.secondary : Color.red)
+                            .fixedSize(horizontal: false, vertical: true)
                         HStack {
-                            if failed { Text("邮箱或激活码不对").font(.caption).foregroundStyle(.red) }
-                            Spacer()
-                            Button("激活") { failed = !state.activate(email: email, code: code) }
-                                .buttonStyle(.borderedProminent).disabled(email.isEmpty || code.isEmpty)
+                            TextField("输入激活码 LZ-…", text: $code).textFieldStyle(.roundedBorder)
+                            Button(busy ? "激活中…" : "激活") { activate() }
+                                .buttonStyle(.borderedProminent).disabled(busy || code.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
+                        if !msg.isEmpty { Text(msg).font(.caption).foregroundStyle(msg == "已激活" ? .green : .red) }
+                        Text("激活码在购买后获得，一码绑定本机；服务器可吊销/到期。").font(.caption2).foregroundStyle(.secondary)
                     }.padding(14)
                 }
-                GroupCard {
-                    GRow(title: "还没有激活码？", subtitle: "购买后用你的邮箱生成，一码解锁全部 Pro 功能") {
-                        Text("购买入口待配").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
             }
-
-            SectionHeader("Pro 解锁什么")
-            GroupCard {
-                proRow("自定义形象", "上传任意图，一键像素化成你的专属桌宠")
-                RowDivider()
-                proRow("更多形象与动作", "陆续解锁")
-                RowDivider()
-                proRow("AI 督促文案", "更有性格的主动提醒")
-            }
-            Text("离线激活，无需联网验证；激活码与你的邮箱绑定。")
-                .font(.caption).foregroundStyle(.secondary)
         }
     }
-    private func proRow(_ t: String, _ s: String) -> some View {
-        GRow(title: t, subtitle: s) { Image(systemName: "crown.fill").foregroundStyle(.orange).font(.caption) }
+
+    private var expiryText: String {
+        if let e = state.config.licenseExpiresAt { return "有效期至 " + fmt(e) }
+        return "永久授权，感谢支持"
+    }
+    private var trialText: String {
+        state.entitled
+            ? "免费试用中，还剩 \(state.trialDaysLeft) 天。输入激活码可解锁并绑定本机。"
+            : "试用已到期，输入激活码后继续使用。"
+    }
+    private func fmt(_ ms: Double) -> String {
+        let d = DateFormatter(); d.dateFormat = "yyyy-MM-dd"
+        return d.string(from: Date(timeIntervalSince1970: ms / 1000))
+    }
+    private func activate() {
+        busy = true; msg = ""
+        Task { @MainActor in
+            let err = await state.activate(code: code)
+            busy = false; msg = err.isEmpty ? "已激活" : err
+        }
     }
 }
 
@@ -365,7 +365,7 @@ struct SettingsView: View {
         .init(key: "general", title: "通用",   subtitle: "系统与基础行为",   icon: "gearshape.fill",           color: .gray),
         .init(key: "model",   title: "模型",   subtitle: "接入与中转站",     icon: "cpu",                      color: .blue),
         .init(key: "pet",     title: "宠物",   subtitle: "形象·动作·性格·记忆·语音·交互", icon: "pawprint.fill",  color: .pink),
-        .init(key: "task",    title: "任务",   subtitle: "提醒与督促",       icon: "checklist",                color: .orange),
+        .init(key: "task",    title: "任务",   subtitle: "后续开发",         icon: "checklist",                color: .orange),
         .init(key: "privacy", title: "隐私",   subtitle: "它懂你·但不偷看你",  icon: "lock.shield.fill",         color: .mint),
         .init(key: "about",   title: "关于",   subtitle: "版本 · 激活",       icon: "info.circle.fill",         color: .gray),
     ]
@@ -420,7 +420,7 @@ struct SettingsView: View {
         case "general":  general
         case "model":    ModelPane(state: state)
         case "pet":      pet
-        case "task":     TaskPane(state: state)
+        case "task":     placeholder("任务", "提醒 · 督促 · 陪你做 —— 后续开发，敬请期待")
         case "privacy":  privacy
         default:         about
         }
