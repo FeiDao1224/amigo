@@ -347,6 +347,24 @@ struct SettingsView: View {
             }
             SectionHeader("自定义形象")
             CustomPetCard(state: state, onUpgrade: { sel = "pro" })
+
+            SectionHeader("AI 生成动画（实验）")
+            GroupCard {
+                GRow(title: "生成 Idle 动画",
+                     subtitle: "用当前形象作参考，调本地生成服务 localhost:3000 出 4 帧呼吸动画") {
+                    Button(state.spriteStatus == "generating" ? "生成中…" : "生成 Idle") {
+                        Task { await state.generateIdleSprite() }
+                    }.disabled(state.spriteStatus == "generating")
+                }
+                if state.spriteStatus == "success" {
+                    RowDivider()
+                    GRow(title: "✅ 已生成", subtitle: "桌宠 idle 已切换到 AI 帧动画（重启也会保留）") { EmptyView() }
+                } else if state.spriteStatus.hasPrefix("failed:") {
+                    RowDivider()
+                    GRow(title: "❌ 生成失败", subtitle: String(state.spriteStatus.dropFirst(7))) { EmptyView() }
+                }
+            }
+
             SectionHeader("展示模式")
             HStack(spacing: 12) {
                 modeCard("桌面悬浮", "贴在桌面右下角，可拖动", selected: true)

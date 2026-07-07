@@ -73,11 +73,17 @@ struct PetView: View {
     // 宠物本体：有角色图用图、没有用代码猫；整图程序动画（TimelineView 时间驱动）
     private var cat: some View {
         TimelineView(.animation) { tl in
-            if rt.animator.currentFrame != nil {
+            let t = tl.date.timeIntervalSinceReferenceDate
+            if rt.petState == .idle, !rt.idleFrames.isEmpty {
+                // AI 生成的 idle 帧优先：4fps 循环播放
+                let i = Int(t * 4) % rt.idleFrames.count
+                Image(nsImage: rt.idleFrames[i]).resizable().interpolation(.none).scaledToFit()
+                    .frame(width: 80, height: 125)
+                    .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
+            } else if rt.animator.currentFrame != nil {
                 petVisual
             } else {
-                petVisual
-                    .modifier(PetMotion(state: rt.petState, time: tl.date.timeIntervalSinceReferenceDate))
+                petVisual.modifier(PetMotion(state: rt.petState, time: t))
             }
         }
         .contentShape(Circle())

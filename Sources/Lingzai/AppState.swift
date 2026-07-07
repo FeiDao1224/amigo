@@ -120,6 +120,26 @@ final class AppState: ObservableObject {
         PetImages.clearCache(); onCharacterChanged?("cat")
     }
 
+    // MARK: AI 生成 idle 动画（调本地 sprite-sheet-creator，localhost:3000）
+    @Published var spriteStatus = ""     // "" / "generating" / "success" / "failed:<可读错误>"
+    var onGeneratedFramesChanged: (() -> Void)?
+
+    @MainActor
+    func generateIdleSprite() async {
+        let refURL = PetImages.dir.appendingPathComponent("\(config.character).png")
+        guard let ref = try? Data(contentsOf: refURL), NSImage(data: ref) != nil else {
+            spriteStatus = "failed:当前形象没有图片可作参考（先选一个鱼 / 做个自定义形象）"; return
+        }
+        spriteStatus = "generating"
+        do {
+            _ = try await SpriteSheetClient.generateIdle(referencePNG: ref)
+            spriteStatus = "success"
+            onGeneratedFramesChanged?()
+        } catch {
+            spriteStatus = "failed:\(error.localizedDescription)"
+        }
+    }
+
     // MARK: 长期记忆
     func addMemory(content: String, category: String, longTerm: Bool) {
         let c = content.trimmingCharacters(in: .whitespacesAndNewlines)
