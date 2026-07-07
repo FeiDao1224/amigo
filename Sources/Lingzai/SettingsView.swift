@@ -367,8 +367,7 @@ struct SettingsView: View {
         .init(key: "pet",     title: "宠物",   subtitle: "形象·动作·性格·记忆·语音·交互", icon: "pawprint.fill",  color: .pink),
         .init(key: "task",    title: "任务",   subtitle: "提醒与督促",       icon: "checklist",                color: .orange),
         .init(key: "privacy", title: "隐私",   subtitle: "它懂你·但不偷看你",  icon: "lock.shield.fill",         color: .mint),
-        .init(key: "pro",     title: "Pro",   subtitle: "激活 · 解锁全部",    icon: "crown.fill",               color: .orange),
-        .init(key: "about",   title: "关于",   subtitle: "版本与更新",       icon: "info.circle.fill",         color: .gray),
+        .init(key: "about",   title: "关于",   subtitle: "版本 · 激活",       icon: "info.circle.fill",         color: .gray),
     ]
 
     var body: some View {
@@ -423,7 +422,6 @@ struct SettingsView: View {
         case "pet":      pet
         case "task":     TaskPane(state: state)
         case "privacy":  privacy
-        case "pro":      ProPane(state: state)
         default:         about
         }
     }
@@ -657,6 +655,7 @@ struct SettingsView: View {
             GroupCard {
                 GRow(title: "灵崽 Lingzai", subtitle: "被你真实行为驱动的桌面搭子") { Text("v0.1 原生内测").foregroundStyle(.secondary) }
             }
+            ProPane(state: state)
         }
     }
 
@@ -688,14 +687,14 @@ struct ModelPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("模型 · BYOK")
-            Text("国内主流 + 中转站（境外模型）。Key 只存本地。")
+            SectionHeader("模型")
+            Text("配置一个大模型服务：API 端点 + Key + 模型。Key 只存在本地。")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             // 已保存
             if state.config.providers.isEmpty {
                 GroupCard {
-                    GRow(title: "还没有模型配置", subtitle: "下面选个预设补 Key，或粘贴中转站分享链接一键导入") { EmptyView() }
+                    GRow(title: "还没有模型配置", subtitle: "下面「模型选择」选一个补上 Key，或手动填端点") { EmptyView() }
                 }
             } else {
                 GroupCard {
@@ -716,34 +715,15 @@ struct ModelPane: View {
                 }
             }
 
-            // 中转站一键导入
-            SectionHeader("从中转站导入")
-            GroupCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("粘贴中转站分享链接 / JSON，或直接把 Codex 的 config.toml + auth.json 一起粘进来，一键导入")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                    HStack {
-                        TextField("ccswitch://… 或 {\"baseUrl\":\"…\",\"apiKey\":\"…\",\"model\":\"…\"}", text: $importText)
-                            .textFieldStyle(.roundedBorder)
-                        Button("导入") {
-                            if state.importProvider(from: importText) { importMsg = "已导入 ✓"; importText = "" }
-                            else { importMsg = "没解析出配置，检查一下格式" }
-                        }.buttonStyle(.borderedProminent).tint(.blue)
-                    }
-                    if !importMsg.isEmpty { Text(importMsg).font(.caption).foregroundStyle(.secondary) }
-                }
-                .padding(14)
-            }
-
             // 新增 / 编辑
             SectionHeader(editingId == nil ? "新增配置" : "编辑配置")
-            Text("中转站只需填「API 端点 + API Key」两项，其余留空；国内模型用下面预设一键带出端点。")
+            Text("填 API 端点 + Key + 模型；「模型选择」可一键带出常见服务的端点。")
                 .font(.caption).foregroundStyle(.secondary)
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Picker("国内模型预设", selection: $presetSel) {
-                        Text("— 中转站直接往下填；国内模型选这里 —").tag("")
-                        ForEach(PRESETS, id: \.key) { Text($0.name).tag($0.key) }
+                    Picker("模型选择", selection: $presetSel) {
+                        Text("— 选一个常见服务，或手动往下填 —").tag("")
+                        ForEach(PRESETS.filter { $0.key != "relay" }, id: \.key) { Text($0.name).tag($0.key) }
                     }
                     .onChange(of: presetSel) { key in
                         if let p = PRESETS.first(where: { $0.key == key }) { fName = p.name; fBase = p.baseUrl; fModel = p.model }
@@ -754,7 +734,7 @@ struct ModelPane: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         TextField("模型（选填）", text: $fModel).textFieldStyle(.roundedBorder)
-                        Text("中转站一般留空即可；若「测试连接」报 model is required，就把中转站给的模型名填这里")
+                        Text("有的服务必须填模型名；不确定就填服务商给的默认模型")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     VStack(alignment: .leading, spacing: 3) {
@@ -811,7 +791,7 @@ struct PersonaPane: View {
     @State private var name = ""
     @State private var text = ""
     @State private var loaded = false
-    @State private var saved = false
+    @State private var editing = false
 
     static let template = """
     你是阿豆，一只住在我电脑桌面上的橘猫。
@@ -823,31 +803,7 @@ struct PersonaPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("名字 · 性格")
-            GroupCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("名字和人设都跟「当前形象」绑定 —— 换形象会各自切换，不会串。")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        Text("名字").font(.system(size: 12))
-                        TextField("给它起个名，如 阿豆", text: $name).textFieldStyle(.roundedBorder)
-                            .onChange(of: name) { _ in saved = false }
-                    }
-                    Text("人设（它会照这个说话）").font(.system(size: 11)).foregroundStyle(.secondary)
-                    TextEditor(text: $text)
-                        .font(.system(size: 13)).frame(minHeight: 120)
-                        .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.1)))
-                        .onChange(of: text) { _ in saved = false }
-                    HStack {
-                        Button("恢复默认模板") { text = Self.template }.controlSize(.small)
-                        Spacer()
-                        if saved { Text("已保存 ✓").font(.caption).foregroundStyle(.green) }
-                        Button("保存") { save() }.buttonStyle(.borderedProminent).controlSize(.small)
-                    }
-                }.padding(14)
-            }
+            if editing { editor } else { card }
         }
         .onAppear {
             if !loaded {
@@ -859,11 +815,55 @@ struct PersonaPane: View {
         }
     }
 
+    // 收起：一张卡片显示名字 + 人设摘要
+    private var card: some View {
+        GroupCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(name.isEmpty ? "（未命名）" : name).font(.system(size: 15, weight: .semibold))
+                    Spacer()
+                    Button("编辑") { editing = true }.controlSize(.small)
+                }
+                Text(text).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .lineLimit(6).fixedSize(horizontal: false, vertical: true)
+                Text("名字和人设跟「当前形象」绑定，换形象各自切换、不会串。")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }.padding(14)
+        }
+    }
+
+    // 展开：编辑名字 + 人设
+    private var editor: some View {
+        GroupCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text("名字").font(.system(size: 12))
+                    TextField("给它起个名，如 阿豆", text: $name).textFieldStyle(.roundedBorder)
+                }
+                Text("人设（它会照这个说话）").font(.system(size: 11)).foregroundStyle(.secondary)
+                TextEditor(text: $text)
+                    .font(.system(size: 13)).frame(minHeight: 130)
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.1)))
+                HStack {
+                    Button("恢复默认模板") { text = Self.template }.controlSize(.small)
+                    Spacer()
+                    Button("取消") {
+                        let c = state.currentCard(); name = c.name
+                        text = c.persona.isEmpty ? Self.template : c.persona; editing = false
+                    }.controlSize(.small)
+                    Button("保存") { save(); editing = false }.buttonStyle(.borderedProminent).controlSize(.small)
+                }
+            }.padding(14)
+        }
+    }
+
     private func save() {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let n = name.trimmingCharacters(in: .whitespaces)
         state.setCard(CardData(name: n, species: "", tone: "", catchphrases: [], persona: t.isEmpty ? Self.template : t))
-        saved = true
     }
 }
 
