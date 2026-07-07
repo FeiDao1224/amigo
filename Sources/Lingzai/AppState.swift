@@ -63,6 +63,47 @@ final class AppState: ObservableObject {
         return true
     }
 
+    // MARK: 隐私 / 数据主权（它懂你，但不偷看你）
+    var dataDir: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Lingzai", isDirectory: true)
+    }
+    /// 在访达里定位数据文件夹（让你亲眼看见数据都在本机）
+    func revealDataFolder() {
+        try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([dataDir])
+    }
+    /// 导出"关于你"的数据（记忆 / 任务）到你选的文件夹；不含 API Key
+    @discardableResult
+    func exportData() -> Bool {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true; panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false; panel.prompt = "导出到这里"
+        guard panel.runModal() == .OK, let dest = panel.url else { return false }
+        let fm = FileManager.default
+        let out = dest.appendingPathComponent("灵崽数据备份", isDirectory: true)
+        try? fm.createDirectory(at: out, withIntermediateDirectories: true)
+        for name in ["memories.json", "todos.json"] {
+            let src = dataDir.appendingPathComponent(name)
+            guard fm.fileExists(atPath: src.path) else { continue }
+            let dst = out.appendingPathComponent(name)
+            try? fm.removeItem(at: dst); try? fm.copyItem(at: src, to: dst)
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([out])
+        return true
+    }
+    /// 忘记我：只清记忆，保留模型与性格
+    func forgetMe() { clearMemories() }
+    /// 清空全部数据：记忆 / 任务 / 自定义形象 / 性格（模型 Key 在「模型」页单独管理）
+    func wipeAllData() {
+        let fm = FileManager.default
+        for name in ["memories.json", "todos.json"] { try? fm.removeItem(at: dataDir.appendingPathComponent(name)) }
+        try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
+        memories = []; tasks = []
+        config.customCard = nil; config.character = "cat"; persist()
+        PetImages.clearCache(); onCharacterChanged?("cat")
+    }
+
     // MARK: 长期记忆
     func addMemory(content: String, category: String, longTerm: Bool) {
         let c = content.trimmingCharacters(in: .whitespacesAndNewlines)

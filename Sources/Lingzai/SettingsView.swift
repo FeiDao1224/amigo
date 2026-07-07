@@ -99,6 +99,7 @@ struct SettingsView: View {
         .init(key: "task",    title: "任务",   subtitle: "提醒与督促",       icon: "checklist",                color: .orange),
         .init(key: "voice",   title: "语音",   subtitle: "让它开口",         icon: "waveform",                 color: .green),
         .init(key: "interact",title: "交互",   subtitle: "点击·拖拽·文件",   icon: "hand.tap.fill",            color: .teal),
+        .init(key: "privacy", title: "隐私",   subtitle: "它懂你·但不偷看你",  icon: "lock.shield.fill",         color: .mint),
         .init(key: "about",   title: "关于",   subtitle: "版本与更新",       icon: "info.circle.fill",         color: .gray),
     ]
 
@@ -145,6 +146,7 @@ struct SettingsView: View {
         case "task":     TaskPane(state: state)
         case "voice":    voice
         case "interact": interact
+        case "privacy":  privacy
         default:         about
         }
     }
@@ -154,6 +156,69 @@ struct SettingsView: View {
     private var proactiveBinding: Binding<Bool> { Binding(get: { state.config.proactive }, set: { state.setProactive($0) }) }
     private var readAloudBinding: Binding<Bool> { Binding(get: { state.config.readAloud }, set: { state.setReadAloud($0) }) }
     private var proactiveLLMBinding: Binding<Bool> { Binding(get: { state.config.proactiveLLM }, set: { state.setProactiveLLM($0) }) }
+    private var stealthBinding: Binding<Bool> { Binding(get: { state.config.stealth }, set: { state.setStealth($0) }) }
+
+    // MARK: 隐私中心 —— 它懂你，但不偷看你
+    private var privacy: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader("隐私 · 它懂你，但不偷看你")
+            GroupCard {
+                GRow(title: "数据都在你自己的电脑上",
+                     subtitle: "记忆 / 任务 / 性格 / 形象 / API Key 全部只存在本机，从不上传到我们的服务器") {
+                    Button("在访达中打开") { state.revealDataFolder() }
+                }
+            }
+
+            SectionHeader("它到底观察什么")
+            GroupCard {
+                GRow(title: "只看「你多久没碰键鼠」",
+                     subtitle: "为了在合适时候提醒你，它只用系统给的这一个闲置时长。不读窗口内容、不截屏、不记录你打了什么字。") { EmptyView() }
+                RowDivider()
+                GRow(title: "主动观察与督促", subtitle: "关掉后它完全不看、不主动冒泡") {
+                    Toggle("", isOn: proactiveBinding).labelsHidden().toggleStyle(.switch)
+                }
+                RowDivider()
+                GRow(title: "隐身模式", subtitle: "临时全部静默：不观察、不打扰，直到你关掉") {
+                    Toggle("", isOn: stealthBinding).labelsHidden().toggleStyle(.switch)
+                }
+            }
+
+            SectionHeader("发给大模型的内容")
+            GroupCard {
+                GRow(title: "只在你和你选的模型之间",
+                     subtitle: "对话、你让它记住的记忆、你设的性格，会发给你自己配置的大模型来生成回复；API Key 只存本机，数据不经过我们。") { EmptyView() }
+            }
+
+            SectionHeader("你的控制权")
+            GroupCard {
+                GRow(title: "导出我的数据", subtitle: "把记忆 / 任务 复制一份到你选的文件夹（不含 Key）") {
+                    Button("导出…") { state.exportData() }
+                }
+                RowDivider()
+                GRow(title: "让它忘记我", subtitle: "清空它记住的关于你的一切（保留模型与性格）") {
+                    Button("清空记忆") {
+                        if confirm("清空全部记忆？", "它将忘记关于你的一切，无法恢复。") { state.forgetMe() }
+                    }
+                }
+                RowDivider()
+                GRow(title: "清空全部数据", subtitle: "记忆 / 任务 / 自定义形象 / 性格全部抹掉（模型 Key 在「模型」页单独管理）") {
+                    Button("清空…") {
+                        if confirm("清空全部数据？", "记忆、任务、自定义形象、性格都会被删除，无法恢复。") { state.wipeAllData() }
+                    }.tint(.red)
+                }
+            }
+
+            Text("原则：Local-first。它可以很懂你，但你随时能看见、导出、删除它知道的一切。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func confirm(_ title: String, _ msg: String) -> Bool {
+        let a = NSAlert()
+        a.messageText = title; a.informativeText = msg; a.alertStyle = .warning
+        a.addButton(withTitle: "确认"); a.addButton(withTitle: "取消")
+        return a.runModal() == .alertFirstButtonReturn
+    }
 
     private var task: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -266,8 +331,8 @@ struct SettingsView: View {
                 RowDivider()
                 GRow(title: "拖动", subtitle: "移动宠物位置") { EmptyView() }
                 RowDivider()
-                GRow(title: "拖文件给它", subtitle: "拖进来问它怎么处理（即将开放）") {
-                    Text("即将").font(.caption).foregroundStyle(.secondary)
+                GRow(title: "拖文件给它", subtitle: "把文件拖到它身上，用你的模型帮你看看 / 给处理建议") {
+                    Text("已开放").font(.caption).foregroundStyle(.green)
                 }
             }
         }
@@ -558,7 +623,7 @@ struct MemoryPane: View {
             SectionHeader("它记住的")
             if state.memories.isEmpty {
                 GroupCard {
-                    GRow(title: "还没有记忆", subtitle: "下面手动加一条；聊天/相处中自动积累的能力开发中") { EmptyView() }
+                    GRow(title: "还没有记忆", subtitle: "下面手动加一条；平时聊天它也会自动记住关于你的事") { EmptyView() }
                 }
             } else {
                 GroupCard {
