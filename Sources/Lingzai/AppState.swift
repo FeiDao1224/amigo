@@ -7,10 +7,26 @@ final class AppState: ObservableObject {
     @Published var memories: [Memory] = []
     @Published var tasks: [TodoItem] = []
     @Published var focusing = false               // 陪做模式中
+    @Published var licensed = false               // 已激活 Pro
     var onStartFocus: ((String) -> Void)?
     var onTaskDone: ((String) -> Void)?
 
-    init() { config = ConfigStore.load(); memories = MemoryStore.load(); tasks = TodoStore.load() }
+    init() {
+        config = ConfigStore.load(); memories = MemoryStore.load(); tasks = TodoStore.load()
+        licensed = License.verify(email: config.licenseEmail, code: config.licenseCode)
+    }
+
+    // MARK: 激活 / Pro
+    /// 校验邮箱+激活码，通过则记住并解锁
+    @discardableResult
+    func activate(email: String, code: String) -> Bool {
+        guard License.verify(email: email, code: code) else { return false }
+        config.licenseEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        config.licenseCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        persist(); licensed = true
+        return true
+    }
+    func deactivate() { config.licenseEmail = ""; config.licenseCode = ""; persist(); licensed = false }
 
     func activeProvider() -> Provider? {
         config.providers.first { $0.id == config.activeId } ?? config.providers.first

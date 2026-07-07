@@ -21,6 +21,8 @@ struct Config: Codable {
     var petY: Double? = nil
     var stealth: Bool = false           // 隐身模式：暂停观察与主动打扰
     var character: String = "cat"       // 宠物形象：cat / lazy_fish / anxious_fish / shocked_fish
+    var licenseEmail: String = ""       // 激活：买家邮箱
+    var licenseCode: String = ""        // 激活：离线签名激活码
 }
 
 /// 配置持久化：~/Library/Application Support/Lingzai/config.json

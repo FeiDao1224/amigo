@@ -1,3 +1,4 @@
 .build/
 *.xcuserstate
 Application Support/
+tools/license-private.key

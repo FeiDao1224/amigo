@@ -8,9 +8,64 @@ private struct NavItem: Identifiable {
     var id: String { key }
 }
 
-// 自定义形象：选图 → 像素化预览 → 设为桌宠
+// Pro 激活页：离线邮箱+激活码验签解锁
+private struct ProPane: View {
+    @ObservedObject var state: AppState
+    @State private var email = ""
+    @State private var code = ""
+    @State private var failed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader("Pro · 解锁全部")
+            if state.licensed {
+                GroupCard {
+                    GRow(title: "已激活 ✓", subtitle: "感谢支持！Pro 已全部解锁（\(state.config.licenseEmail)）") {
+                        Button("注销") { state.deactivate(); email = ""; code = ""; failed = false }
+                    }
+                }
+            } else {
+                GroupCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("输入购买时用的邮箱和收到的激活码").font(.system(size: 12)).foregroundStyle(.secondary)
+                        TextField("邮箱", text: $email).textFieldStyle(.roundedBorder)
+                        TextField("激活码", text: $code, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...4)
+                        HStack {
+                            if failed { Text("邮箱或激活码不对").font(.caption).foregroundStyle(.red) }
+                            Spacer()
+                            Button("激活") { failed = !state.activate(email: email, code: code) }
+                                .buttonStyle(.borderedProminent).disabled(email.isEmpty || code.isEmpty)
+                        }
+                    }.padding(14)
+                }
+                GroupCard {
+                    GRow(title: "还没有激活码？", subtitle: "购买后用你的邮箱生成，一码解锁全部 Pro 功能") {
+                        Text("购买入口待配").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            SectionHeader("Pro 解锁什么")
+            GroupCard {
+                proRow("自定义形象", "上传任意图，一键像素化成你的专属桌宠")
+                RowDivider()
+                proRow("更多形象与动作", "陆续解锁")
+                RowDivider()
+                proRow("AI 督促文案", "更有性格的主动提醒")
+            }
+            Text("离线激活，无需联网验证；激活码与你的邮箱绑定。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func proRow(_ t: String, _ s: String) -> some View {
+        GRow(title: t, subtitle: s) { Image(systemName: "crown.fill").foregroundStyle(.orange).font(.caption) }
+    }
+}
+
+// 自定义形象：选图 → 像素化预览 → 设为桌宠（Pro）
 private struct CustomPetCard: View {
     @ObservedObject var state: AppState
+    var onUpgrade: () -> Void = {}
     @State private var source: NSImage?
     @State private var preview: NSImage?
     @State private var level: Double = 0.5
@@ -58,10 +113,15 @@ private struct CustomPetCard: View {
                         Text("像素化在本机完成，图片不会上传。")
                             .font(.system(size: 10)).foregroundStyle(.secondary)
                         Spacer()
-                        Button("设为桌宠") {
-                            if let s = source { state.setCustomPet(from: s, rows: rows, levels: levels, flood: flood) }
+                        if state.licensed {
+                            Button("设为桌宠") {
+                                if let s = source { state.setCustomPet(from: s, rows: rows, levels: levels, flood: flood) }
+                            }
+                            .buttonStyle(.borderedProminent).disabled(preview == nil)
+                        } else {
+                            Button { onUpgrade() } label: { Label("Pro 解锁", systemImage: "crown.fill") }
+                                .buttonStyle(.borderedProminent).tint(.orange)
                         }
-                        .buttonStyle(.borderedProminent).disabled(preview == nil)
                     }
                 }
             }
@@ -100,6 +160,7 @@ struct SettingsView: View {
         .init(key: "voice",   title: "语音",   subtitle: "让它开口",         icon: "waveform",                 color: .green),
         .init(key: "interact",title: "交互",   subtitle: "点击·拖拽·文件",   icon: "hand.tap.fill",            color: .teal),
         .init(key: "privacy", title: "隐私",   subtitle: "它懂你·但不偷看你",  icon: "lock.shield.fill",         color: .mint),
+        .init(key: "pro",     title: "Pro",   subtitle: "激活 · 解锁全部",    icon: "crown.fill",               color: .orange),
         .init(key: "about",   title: "关于",   subtitle: "版本与更新",       icon: "info.circle.fill",         color: .gray),
     ]
 
@@ -147,6 +208,7 @@ struct SettingsView: View {
         case "voice":    voice
         case "interact": interact
         case "privacy":  privacy
+        case "pro":      ProPane(state: state)
         default:         about
         }
     }
@@ -284,7 +346,7 @@ struct SettingsView: View {
                 }
             }
             SectionHeader("自定义形象")
-            CustomPetCard(state: state)
+            CustomPetCard(state: state, onUpgrade: { sel = "pro" })
             SectionHeader("展示模式")
             HStack(spacing: 12) {
                 modeCard("桌面悬浮", "贴在桌面右下角，可拖动", selected: true)
