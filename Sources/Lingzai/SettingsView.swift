@@ -236,95 +236,115 @@ private struct ProPane: View {
     }
 }
 
-// 自定义形象：选/拖图 → 自动抠背景 + 像素化 → 设为桌宠
+// 自定义形象：≤3 张参考图 → 有模型走 AI 精修(拟人化加四肢) / 无模型走本地像素化
 private struct CustomPetCard: View {
     @ObservedObject var state: AppState
     var onUpgrade: () -> Void = {}
-    @State private var source: NSImage?
+    @State private var images: [NSImage] = []
     @State private var preview: NSImage?
     @State private var level: Double = 0.5
     @State private var cutout = true
-    @State private var working = false
+    @State private var localWorking = false
 
-    private var rows: Int { Int((110 - level * 46).rounded()) }   // 0→110精细 .. 1→64块状
+    private var rows: Int { Int((110 - level * 46).rounded()) }
     private var levels: Int { level > 0.6 ? 4 : 5 }
+    private var hasModel: Bool { state.hasModel }
 
     var body: some View {
         GroupCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.06))
-                        if let p = preview {
-                            Image(nsImage: p).resizable().interpolation(.none).scaledToFit().padding(6)
-                        } else {
-                            VStack(spacing: 5) {
-                                Image(systemName: "photo.badge.plus").font(.title2).foregroundStyle(.secondary)
-                                Text("选图 / 拖图\n变像素桌宠").font(.system(size: 10))
-                                    .multilineTextAlignment(.center).foregroundStyle(.secondary)
-                            }
-                        }
-                        if working { ProgressView().controlSize(.small) }
-                    }
-                    .frame(width: 96, height: 120)
-                    .onDrop(of: [.image, .fileURL], isTargeted: nil) { loadDropped($0) }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("自定义形象").font(.system(size: 13, weight: .semibold))
+                Text(hasModel
+                     ? "已配置模型 → 用 AI 生成更精致的像素形象；最多加 3 张参考图会更像。非生物会自动拟人化、加四肢，好做动作。"
+                     : "未配置模型 → 本地像素化。去「模型」页配置后，这里会自动改用 AI 生成，效果更好。")
+                    .font(.system(size: 11)).foregroundStyle(hasModel ? .green : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("自定义形象").font(.system(size: 13, weight: .semibold))
-                        Text("选一张图（自拍 / 喜欢的角色 / 表情包）或直接拖进左边框，自动抠掉背景 + 像素化成你的专属桌宠。")
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button { pick() } label: { Label("选择图片…", systemImage: "photo.on.rectangle") }
+                HStack(spacing: 10) {
+                    ForEach(Array(images.enumerated()), id: \.offset) { idx, img in
+                        ZStack(alignment: .topTrailing) {
+                            Image(nsImage: img).resizable().scaledToFill()
+                                .frame(width: 62, height: 78).clipShape(RoundedRectangle(cornerRadius: 8))
+                            Button { images.remove(at: idx); rebuild() } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }.buttonStyle(.plain).foregroundStyle(.white, .black.opacity(0.55)).padding(2)
+                        }
                     }
+                    if images.count < 3 {
+                        Button { pick() } label: {
+                            VStack(spacing: 3) { Image(systemName: "plus").font(.title3); Text("加图").font(.caption2) }
+                                .frame(width: 62, height: 78).foregroundStyle(.secondary)
+                                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.secondary.opacity(0.6)))
+                        }.buttonStyle(.plain)
+                    }
+                    if !hasModel, let p = preview {
+                        Image(nsImage: p).resizable().interpolation(.none).scaledToFit()
+                            .frame(width: 62, height: 78)
+                            .overlay(alignment: .bottom) { Text("预览").font(.caption2).foregroundStyle(.secondary) }
+                    }
+                    if localWorking || state.customBusy { ProgressView().controlSize(.small) }
                     Spacer(minLength: 0)
                 }
+                .onDrop(of: [.image, .fileURL], isTargeted: nil) { loadDropped($0) }
 
-                if source != nil {
-                    HStack(spacing: 12) {
-                        Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
-                        Slider(value: $level, in: 0...1) { editing in if !editing { rebuild() } }
-                        Toggle("自动抠背景", isOn: $cutout).toggleStyle(.checkbox)
-                            .font(.system(size: 11)).onChange(of: cutout) { _ in rebuild() }
-                    }
-                    HStack {
-                        Text("抠图 + 像素化都在本机完成，图片不会上传。")
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
-                        Spacer()
-                        Button("设为桌宠") {
-                            if let s = source { state.setCustomPet(from: s, rows: rows, levels: levels, cutout: cutout) }
-                        }.buttonStyle(.borderedProminent).disabled(preview == nil)
+                if !images.isEmpty {
+                    if hasModel {
+                        HStack {
+                            if !state.customMsg.isEmpty {
+                                Text(state.customMsg).font(.caption)
+                                    .foregroundStyle(state.customMsg.hasPrefix("失败") ? .red : (state.customMsg.hasPrefix("已生成") ? .green : .secondary))
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Button(state.customBusy ? "生成中…" : "AI 生成并设为桌宠") {
+                                Task { await state.setCustomPetAI(images: images) }
+                            }.buttonStyle(.borderedProminent).disabled(state.customBusy)
+                        }
+                    } else {
+                        HStack(spacing: 12) {
+                            Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
+                            Slider(value: $level, in: 0...1) { e in if !e { rebuild() } }
+                            Toggle("自动抠背景", isOn: $cutout).toggleStyle(.checkbox)
+                                .font(.system(size: 11)).onChange(of: cutout) { _ in rebuild() }
+                        }
+                        HStack {
+                            Text("本机像素化，图片不上传。").font(.system(size: 10)).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("设为桌宠") {
+                                if let s = images.first { state.setCustomPet(from: s, rows: rows, levels: levels, cutout: cutout) }
+                            }.buttonStyle(.borderedProminent).disabled(preview == nil)
+                        }
                     }
                 }
-            }
-            .padding(14)
+            }.padding(14)
         }
     }
 
+    private func addImage(_ img: NSImage) { if images.count < 3 { images.append(img); state.customMsg = ""; rebuild() } }
+
     private func rebuild() {
-        guard let s = source else { return }
-        working = true
+        guard !hasModel, let s = images.first else { preview = images.isEmpty ? nil : preview; return }
+        localWorking = true
         let (r, l, c) = (rows, levels, cutout)
         DispatchQueue.global(qos: .userInitiated).async {
             let out = Pixelizer.pixelize(s, rows: r, levels: l, scale: 3, cutout: c)
-            DispatchQueue.main.async { preview = out; working = false }
+            DispatchQueue.main.async { preview = out; localWorking = false }
         }
     }
 
     private func pick() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        if panel.runModal() == .OK, let url = panel.url, let img = NSImage(contentsOf: url) {
-            source = img; rebuild()
-        }
+        panel.allowedContentTypes = [.image]; panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url, let img = NSImage(contentsOf: url) { addImage(img) }
     }
 
     private func loadDropped(_ providers: [NSItemProvider]) -> Bool {
         guard let p = providers.first else { return false }
         if p.canLoadObject(ofClass: NSImage.self) {
             _ = p.loadObject(ofClass: NSImage.self) { obj, _ in
-                if let img = obj as? NSImage { DispatchQueue.main.async { source = img; rebuild() } }
+                if let img = obj as? NSImage { DispatchQueue.main.async { addImage(img) } }
             }
             return true
         }
@@ -332,7 +352,7 @@ private struct CustomPetCard: View {
             var url: URL?
             if let d = item as? Data { url = URL(dataRepresentation: d, relativeTo: nil) }
             else if let u = item as? URL { url = u }
-            if let url, let img = NSImage(contentsOf: url) { DispatchQueue.main.async { source = img; rebuild() } }
+            if let url, let img = NSImage(contentsOf: url) { DispatchQueue.main.async { addImage(img) } }
         }
         return true
     }
@@ -777,6 +797,7 @@ struct ModelPane: View {
 // MARK: - 性格（问答生成）
 struct PersonaPane: View {
     @ObservedObject var state: AppState
+    @State private var name = ""
     @State private var text = ""
     @State private var loaded = false
     @State private var saved = false
@@ -790,13 +811,19 @@ struct PersonaPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("性格")
+            SectionHeader("名字 · 性格")
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("直接写它的人设 —— 它会照这个说话。可改成任意角色 / 语气 / 称呼。")
+                    Text("名字和人设都跟「当前形象」绑定 —— 换形象会各自切换，不会串。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Text("名字").font(.system(size: 12))
+                        TextField("给它起个名，如 阿豆", text: $name).textFieldStyle(.roundedBorder)
+                            .onChange(of: name) { _ in saved = false }
+                    }
+                    Text("人设（它会照这个说话）").font(.system(size: 11)).foregroundStyle(.secondary)
                     TextEditor(text: $text)
-                        .font(.system(size: 13)).frame(minHeight: 132)
+                        .font(.system(size: 13)).frame(minHeight: 120)
                         .scrollContentBackground(.hidden)
                         .padding(8)
                         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
@@ -813,8 +840,9 @@ struct PersonaPane: View {
         }
         .onAppear {
             if !loaded {
-                let p = state.currentCard().persona
-                text = p.isEmpty ? Self.template : p
+                let c = state.currentCard()
+                name = c.name
+                text = c.persona.isEmpty ? Self.template : c.persona
                 loaded = true
             }
         }
@@ -822,7 +850,8 @@ struct PersonaPane: View {
 
     private func save() {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        state.setCard(CardData(name: "", species: "", tone: "", catchphrases: [], persona: t.isEmpty ? Self.template : t))
+        let n = name.trimmingCharacters(in: .whitespaces)
+        state.setCard(CardData(name: n, species: "", tone: "", catchphrases: [], persona: t.isEmpty ? Self.template : t))
         saved = true
     }
 }

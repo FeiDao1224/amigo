@@ -15,25 +15,26 @@ enum ImageGenError: LocalizedError {
 }
 
 enum ImageGen {
-    /// 用 reference 图 + prompt 做 image edit，返回 PNG 字节。
+    /// 用 1~多张 reference 图 + prompt 做 image edit，返回 PNG 字节。
     static func edit(baseUrl: String, apiKey: String, prompt: String,
-                     referencePNG: Data, size: String = "1024x1024", quality: String = "medium") async throws -> Data {
+                     references: [Data], size: String = "1024x1024", quality: String = "medium") async throws -> Data {
         guard !baseUrl.isEmpty, !apiKey.isEmpty else { throw ImageGenError.noProvider }
+        guard !references.isEmpty else { throw ImageGenError.decode }
         let base = baseUrl.hasSuffix("/") ? String(baseUrl.dropLast()) : baseUrl
         guard let url = URL(string: base + "/images/edits") else { throw ImageGenError.decode }
-        let dataURL = "data:image/png;base64," + referencePNG.base64EncodedString()
+        let dataURLs = references.map { "data:image/png;base64," + $0.base64EncodedString() }
 
         // multipart 优先（标准 OpenAI images/edits 格式，chiyicn 已验证可用）；不认再退回 JSON image_urls。
         do {
             return try await send(multipartRequest(url: url, apiKey: apiKey, prompt: prompt,
-                                                   referencePNG: referencePNG, size: size, quality: quality))
+                                                   references: references, size: size, quality: quality))
         } catch let ImageGenError.http(code, msg) {
             let m = msg.lowercased()
             let retry = [400, 404, 415, 422].contains(code)
                 || m.contains("multipart") || m.contains("image_url") || m.contains("json") || m.contains("unsupported")
             guard retry else { throw ImageGenError.http(code, msg) }
             return try await send(jsonRequest(url: url, apiKey: apiKey, body: [
-                "model": "gpt-image-2", "prompt": prompt, "image_urls": [dataURL],
+                "model": "gpt-image-2", "prompt": prompt, "image_urls": dataURLs,
                 "size": size, "quality": quality, "n": 1, "output_format": "png",
             ]))
         }
@@ -48,7 +49,7 @@ enum ImageGen {
     }
 
     private static func multipartRequest(url: URL, apiKey: String, prompt: String,
-                                         referencePNG: Data, size: String, quality: String) -> URLRequest {
+                                         references: [Data], size: String, quality: String) -> URLRequest {
         let boundary = "Boundary-\(UUID().uuidString)"
         var req = URLRequest(url: url); req.httpMethod = "POST"; req.timeoutInterval = 240
         req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -61,10 +62,12 @@ enum ImageGen {
         }
         for (k, v) in [("model", "gpt-image-2"), ("prompt", prompt), ("size", size),
                        ("quality", quality), ("n", "1"), ("output_format", "png")] { field(k, v) }
-        b.append("--\(boundary)\r\n".data(using: .utf8)!)
-        b.append("Content-Disposition: form-data; name=\"image\"; filename=\"reference.png\"\r\n".data(using: .utf8)!)
-        b.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
-        b.append(referencePNG); b.append("\r\n".data(using: .utf8)!)
+        for (i, ref) in references.enumerated() {
+            b.append("--\(boundary)\r\n".data(using: .utf8)!)
+            b.append("Content-Disposition: form-data; name=\"image\"; filename=\"reference-\(i).png\"\r\n".data(using: .utf8)!)
+            b.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
+            b.append(ref); b.append("\r\n".data(using: .utf8)!)
+        }
         b.append("--\(boundary)--\r\n".data(using: .utf8)!)
         req.httpBody = b
         return req

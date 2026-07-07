@@ -3,6 +3,13 @@ import CoreGraphics
 import Vision
 import CoreImage
 
+extension NSImage {
+    func pngData() -> Data? {
+        guard let cg = cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        return NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])
+    }
+}
+
 /// 通用像素化器：任意图 → 像素风。cutout=true 时先用 Vision 自动抠主体（任意背景都能去），
 /// 抠图失败/系统过旧再退回"四边白底 flood"，最后统一去边缘浅色残留。全部本机完成。
 enum Pixelizer {
@@ -32,6 +39,13 @@ enum Pixelizer {
         var didCut = false
         if cutout, let masked = subjectCutout(src) { src = masked; didCut = true }
         return core(src, rows: rows, levels: levels, scale: scale, floodWhite: cutout && !didCut)
+    }
+
+    /// 只抠背景不像素化（给 AI 生成的形象兜底去底）
+    static func cutoutImage(_ image: NSImage) -> NSImage? {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let cut = subjectCutout(cg) else { return nil }
+        return NSImage(cgImage: cut, size: NSSize(width: cut.width, height: cut.height))
     }
 
     /// Vision 自动抠主体（macOS 14+）：返回背景透明的图；失败/系统旧返回 nil

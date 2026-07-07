@@ -79,6 +79,36 @@ final class AppState: ObservableObject {
         return true
     }
 
+    // 有模型时：用 AI 把 1~3 张参考图生成更精致的像素形象（非生物自动拟人化加四肢）
+    @Published var customBusy = false
+    @Published var customMsg = ""
+    var hasModel: Bool { let p = activeProvider(); return (p?.apiKey.isEmpty == false) && (p?.baseUrl.isEmpty == false) }
+
+    @MainActor
+    func setCustomPetAI(images: [NSImage]) async {
+        guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else { customMsg = "先在「模型」页配一个模型"; return }
+        let refs = Array(images.prefix(3)).compactMap { $0.pngData() }
+        guard !refs.isEmpty else { customMsg = "先加一张图"; return }
+        let prompt = """
+        Turn the subject shown in the reference image(s) into ONE single cute pixel-art character mascot for a desktop pet. Front-facing, full body, standing upright, centered.
+        Keep its recognizable colors, shape and features. If the subject is an object / food / logo / plant / anything WITHOUT a body or limbs, ANTHROPOMORPHIZE it: give it a simple cute face, two small cartoon arms and two legs so it can stand, walk and be animated.
+        Clean detailed 32-bit pixel art, bold 1px outline, limited palette, fully transparent background, no text, no extra objects, no background scenery.
+        """
+        customBusy = true; customMsg = "AI 生成中…（约 30–90s）"
+        do {
+            let data = try await ImageGen.edit(baseUrl: p.baseUrl, apiKey: p.apiKey, prompt: prompt, references: refs, size: "1024x1024", quality: "medium")
+            guard let img = NSImage(data: data) else { customBusy = false; customMsg = "生成结果解析失败"; return }
+            let cleaned = Pixelizer.cutoutImage(img) ?? img
+            let url = PetImages.dir.appendingPathComponent("custom.png")
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if let png = cleaned.pngData() { try? png.write(to: url) }
+            PetImages.clearCache(); setCharacter("custom")
+            customBusy = false; customMsg = "已生成 ✓"
+        } catch {
+            customBusy = false; customMsg = "失败：\(error.localizedDescription)"
+        }
+    }
+
     // MARK: 隐私 / 数据主权（它懂你，但不偷看你）
     var dataDir: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!

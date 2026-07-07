@@ -56,7 +56,7 @@ enum SpriteGen {
 
     /// 生成某动作（绑定到当前形象）：直连生图 → 2×2 切 4 帧 → 去白底 + 底部居中对齐
     static func generate(actionId: String, prompt: String, character: String, referencePNG: Data, baseUrl: String, apiKey: String) async throws -> Int {
-        let data = try await ImageGen.edit(baseUrl: baseUrl, apiKey: apiKey, prompt: prompt, referencePNG: referencePNG)
+        let data = try await ImageGen.edit(baseUrl: baseUrl, apiKey: apiKey, prompt: prompt, references: [referencePNG])
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let sheet = CGImageSourceCreateImageAtIndex(src, 0, nil) else { throw SpriteGenError.decode }
         return try sliceRegisterSave(sheet, character: character, action: actionId)
