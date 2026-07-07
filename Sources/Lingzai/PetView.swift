@@ -13,6 +13,7 @@ struct PetView: View {
     var onFile: (URL) -> Void
     var onChat: () -> Void
     var onSend: (String) -> Void
+    var onTrigger: (String) -> Void = { _ in }
 
     @State private var chatInput = ""
     @FocusState private var inputFocused: Bool
@@ -83,22 +84,16 @@ struct PetView: View {
             }
         }
         .contentShape(Circle())
-        .onTapGesture { onSpeak() }
+        .onTapGesture(count: 2) { onTrigger("double") }
+        .onTapGesture { onTrigger("left") }
         .highPriorityGesture(
             DragGesture(minimumDistance: 6)
                 .onChanged { _ in onDrag(false) }
                 .onEnded { _ in onDrag(true) }
         )
         .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.4).onEnded { _ in onChat() }
+            LongPressGesture(minimumDuration: 0.4).onEnded { _ in onTrigger("long") }
         )
-        .contextMenu {
-            Button("摸摸头") { onSpeak() }
-            Button("打开设置…") { onOpenSettings() }
-            Button("隐藏宠物") { onTogglePet() }
-            Divider()
-            Button("退出灵崽") { onQuit() }
-        }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
     }
 

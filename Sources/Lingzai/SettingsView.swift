@@ -440,6 +440,13 @@ struct SettingsView: View {
             }.labelsHidden().frame(width: 130)
         }
     }
+    private func clickRow(_ title: String, _ sub: String, _ trigger: String, _ current: String) -> some View {
+        GRow(title: title, subtitle: sub) {
+            Picker("", selection: Binding(get: { current }, set: { state.setClick(trigger, $0) })) {
+                ForEach(state.clickOptions, id: \.0) { Text($0.1).tag($0.0) }
+            }.labelsHidden().frame(width: 150)
+        }
+    }
 
     // MARK: 隐私中心 —— 它懂你，但不偷看你
     private var privacy: some View {
@@ -631,20 +638,18 @@ struct SettingsView: View {
                 GRow(title: "空闲", subtitle: "没操作时播放你在「动作」里选中的默认动作") {
                     Text("＝默认动作").font(.caption).foregroundStyle(.secondary)
                 }
+                RowDivider(); clickRow("左键点击", "戳一下", "left", state.config.clickLeft)
+                RowDivider(); clickRow("双击", "连点两下", "double", state.config.clickDouble)
+                RowDivider(); clickRow("长按", "按住不放", "long", state.config.clickLong)
+                RowDivider(); clickRow("右键点击", "右键", "right", state.config.clickRight)
                 RowDivider()
-                GRow(title: "左键点击", subtitle: "戳一下 → 摸头 / 冒一句") { Text("固定").font(.caption).foregroundStyle(.secondary) }
-                RowDivider()
-                GRow(title: "长按", subtitle: "长按 → 打开对话输入框") { Text("固定").font(.caption).foregroundStyle(.secondary) }
-                RowDivider()
-                GRow(title: "右键点击", subtitle: "菜单 → 摸头 / 设置 / 隐藏 / 退出") { Text("固定").font(.caption).foregroundStyle(.secondary) }
-                RowDivider()
-                GRow(title: "拖动", subtitle: "移动宠物位置") { Text("固定").font(.caption).foregroundStyle(.secondary) }
+                GRow(title: "拖动", subtitle: "移动宠物位置（会自动走 / 跑）") { Text("固定").font(.caption).foregroundStyle(.secondary) }
                 RowDivider()
                 GRow(title: "文件拖动", subtitle: "拖文件到它身上 → 用你的模型帮你看 / 给处理建议") {
                     Text("已开放").font(.caption).foregroundStyle(.green)
                 }
             }
-            Text("动作没生成时会回退到静态形象 / 程序动画，不影响使用。「新建交互 / 双击映射」下一版加。")
+            Text("每个点击都能改成：某功能，或播放某个动作。动作没生成时会回退到静态 / 程序动画。")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

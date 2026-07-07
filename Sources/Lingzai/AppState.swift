@@ -235,6 +235,22 @@ final class AppState: ObservableObject {
         persist(); onGeneratedFramesChanged?()
     }
 
+    // 点击行为可配置：功能 + 播放某动作(act:<id>)
+    static let clickFunctions: [(String, String)] = [
+        ("none", "无"), ("speak", "摸头 / 说一句"), ("chat", "打开对话"),
+        ("settings", "打开设置"), ("hide", "隐藏宠物"), ("menu", "弹出菜单")
+    ]
+    var clickOptions: [(String, String)] {
+        AppState.clickFunctions + allActions.map { ("act:" + $0.id, "播放 · " + $0.title) }
+    }
+    func setClick(_ trigger: String, _ v: String) {
+        switch trigger {
+        case "left": config.clickLeft = v; case "double": config.clickDouble = v
+        case "long": config.clickLong = v; case "right": config.clickRight = v; default: break
+        }
+        persist()
+    }
+
     // MARK: 长期记忆
     func addMemory(content: String, category: String, longTerm: Bool) {
         let c = content.trimmingCharacters(in: .whitespacesAndNewlines)

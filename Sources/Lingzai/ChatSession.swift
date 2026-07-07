@@ -1,15 +1,46 @@
 import Foundation
 
-struct ChatMsg: Identifiable, Equatable {
-    let id = UUID()
+struct ChatMsg: Identifiable, Equatable, Codable {
+    var id = UUID()
     let role: String    // user / assistant
     let content: String
 }
 
+/// 聊天记录持久化：~/Library/Application Support/Lingzai/chat.json（保留最近 200 条）
+enum ChatStore {
+    static var url: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Lingzai", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base.appendingPathComponent("chat.json")
+    }
+    static func load() -> [ChatMsg] {
+        guard let d = try? Data(contentsOf: url), let m = try? JSONDecoder().decode([ChatMsg].self, from: d) else { return [] }
+        return m
+    }
+    static func save(_ m: [ChatMsg]) {
+        if let d = try? JSONEncoder().encode(Array(m.suffix(200))) { try? d.write(to: url) }
+    }
+}
+
 /// 和阿豆的多轮对话 + 从对话里自动提取记忆
 final class ChatSession: ObservableObject {
-    @Published var messages: [ChatMsg] = []
+    @Published var messages: [ChatMsg] = [] { didSet { ChatStore.save(messages) } }
     @Published var busy = false
+
+    init() { messages = ChatStore.load() }
+
+    /// 拖文件进聊天：文本文件带内容、其余带文件名，交给大模型
+    func sendFile(_ url: URL) {
+        let name = url.lastPathComponent
+        var msg = "我拖给你一个文件：\(name)。"
+        if let data = try? Data(contentsOf: url), data.count < 200_000, let text = String(data: data, encoding: .utf8) {
+            msg += "内容如下（帮我看看 / 给点处理建议）：\n\(text.prefix(2000))"
+        } else {
+            msg += "帮我说说这类文件一般怎么处理。"
+        }
+        send(msg)
+    }
 
     var provider: () -> Provider? = { nil }
     var systemPrompt: () -> String = { "" }                 // 人格 + 记忆

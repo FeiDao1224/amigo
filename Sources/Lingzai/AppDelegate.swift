@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var lastDragPos: NSPoint?            // 拖动测速
     private var lastDragTime: TimeInterval?
     private var dragSpeed: CGFloat = 0           // 平滑后的拖动速度 pt/s
+    private var rightClickMonitor: Any?          // 右键按配置派发
     private let state = AppState()
     private let runtime = PetRuntime()
     private let chat = ChatSession()
@@ -61,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         setupStatusItem()
         setupPetPanel()
+        setupRightClick()
         startCursorTracking()
         maybeMorningGreeting()
         // 启动就冒个云气泡，让你立刻看到新气泡 + 知道长按能说话
@@ -151,7 +153,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.runtime.waitingReply = true         // 进入"打电话"等回复
                 self.runtime.showBubble("…", sticky: true)
                 self.chat.send(text)
-            }
+            },
+            onTrigger: { [weak self] t in self?.dispatchClick(t) }
         )
         panel.contentView = NSHostingView(rootView: view)
 
@@ -186,6 +189,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // 行为驱动：对话/等回复→打电话；拖动→走/跑(带方向)；用电脑→工作；桌面空→待着
     private func updateBehaviorAction() {
+        if let until = runtime.oneShotUntil {                // 点击触发的一次性动作优先
+            if Date() < until { runtime.showAction(runtime.oneShotKey); return }
+            runtime.oneShotUntil = nil
+        }
         if runtime.waitingReply || runtime.chatting {
             runtime.facingLeft = false
             runtime.showAction(state.config.mapChat); return
@@ -230,6 +237,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             state.setPetPosition(panel.frame.origin)
         }
     }
+
+    // 右键按配置派发（可在设置→交互里改）
+    private func setupRightClick() {
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
+            guard let self, let panel = self.petPanel, panel.isVisible, event.window === panel else { return event }
+            self.dispatchClick("right")
+            return nil
+        }
+    }
+
+    // 交互派发：把某触发映射到配置里的行为
+    private func dispatchClick(_ trigger: String) {
+        switch trigger {
+        case "left":   executeClick(state.config.clickLeft)
+        case "double": executeClick(state.config.clickDouble)
+        case "long":   executeClick(state.config.clickLong)
+        case "right":  executeClick(state.config.clickRight)
+        default: break
+        }
+    }
+    private func executeClick(_ key: String) {
+        switch key {
+        case "", "none": break
+        case "speak":    runtime.speak()
+        case "chat":     startInlineChat()
+        case "settings": openSettings()
+        case "hide":     togglePet()
+        case "menu":     showPetMenu()
+        default:         if key.hasPrefix("act:") { runtime.oneShot(String(key.dropFirst(4))) }
+        }
+    }
+    private func showPetMenu() {
+        let menu = NSMenu()
+        let speak = NSMenuItem(title: "摸摸头", action: #selector(menuSpeak), keyEquivalent: "")
+        let settings = NSMenuItem(title: "打开设置…", action: #selector(openSettings), keyEquivalent: "")
+        let hide = NSMenuItem(title: "隐藏宠物", action: #selector(togglePet), keyEquivalent: "")
+        let quit = NSMenuItem(title: "退出灵崽", action: #selector(quitApp), keyEquivalent: "")
+        for it in [speak, settings, hide, quit] { it.target = self }
+        menu.items = [speak, settings, hide, .separator(), quit]
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+    @objc private func menuSpeak() { runtime.speak() }
 
     // 点宠物：在它下方开/关输入框（不再开聊天窗）
     private func startInlineChat() {

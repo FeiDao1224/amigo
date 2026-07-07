@@ -16,6 +16,9 @@ final class PetRuntime: ObservableObject {
     @Published var moveMotion: Int = 0                  // 0=无 1=走 2=跑（没生成对应动作时的程序位移兜底）
     @Published var waitingReply = false                 // 发消息后等模型返回：显示"打电话"
     @Published var facingLeft = false                   // 朝向：往左走时水平翻转
+    @Published var oneShotUntil: Date?                  // 一次性播放某动作(点击触发)到某时刻
+    var oneShotKey = ""
+    func oneShot(_ key: String, seconds: Double = 2.5) { oneShotKey = key; oneShotUntil = Date().addingTimeInterval(seconds) }
     let animator = PetAnimator()
 
     private var currentActionKey = ""

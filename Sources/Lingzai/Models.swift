@@ -31,6 +31,10 @@ struct Config: Codable {
     var mapChat: String = "phone"       // 对话中 → 打电话
     var customActions: [CustomAction] = []      // 用户自建动作
     var personas: [String: CardData] = [:]      // 每个形象一套性格/人设
+    var clickLeft: String = "speak"             // 左键点击行为
+    var clickDouble: String = "none"            // 双击行为
+    var clickLong: String = "chat"              // 长按行为
+    var clickRight: String = "menu"             // 右键行为
 }
 
 /// 用户自建的动作（简单描述 → 生成）

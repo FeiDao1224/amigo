@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ChatView: View {
     @ObservedObject var session: ChatSession
@@ -10,7 +11,7 @@ struct ChatView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         if session.messages.isEmpty {
-                            Text("跟阿豆随便聊点什么～它会慢慢记住你。")
+                            Text("跟阿豆随便聊点什么～它会慢慢记住你。也可以把文件拖进来让它帮你看。")
                                 .font(.caption).foregroundStyle(.secondary).padding(.top, 10)
                         }
                         ForEach(session.messages) { m in
@@ -52,6 +53,16 @@ struct ChatView: View {
             .padding(10)
         }
         .frame(minWidth: 340, minHeight: 400)
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            guard let p = providers.first else { return false }
+            p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                var url: URL?
+                if let d = item as? Data { url = URL(dataRepresentation: d, relativeTo: nil) }
+                else if let u = item as? URL { url = u }
+                if let url { DispatchQueue.main.async { session.sendFile(url) } }
+            }
+            return true
+        }
     }
 
     private func sendIt() {
