@@ -274,6 +274,14 @@ struct SettingsView: View {
     private var readAloudBinding: Binding<Bool> { Binding(get: { state.config.readAloud }, set: { state.setReadAloud($0) }) }
     private var proactiveLLMBinding: Binding<Bool> { Binding(get: { state.config.proactiveLLM }, set: { state.setProactiveLLM($0) }) }
     private var stealthBinding: Binding<Bool> { Binding(get: { state.config.stealth }, set: { state.setStealth($0) }) }
+    private var behaviorBinding: Binding<Bool> { Binding(get: { state.config.behaviorDriven }, set: { state.setBehaviorDriven($0) }) }
+    private func mapRow(_ title: String, _ trigger: String, _ current: String) -> some View {
+        GRow(title: title) {
+            Picker("", selection: Binding(get: { current }, set: { state.setMap(trigger, $0) })) {
+                ForEach(PetAnimAction.allCases) { a in Text("\(a.emoji) \(a.title)").tag(a.rawValue) }
+            }.labelsHidden().frame(width: 130)
+        }
+    }
 
     // MARK: 隐私中心 —— 它懂你，但不偷看你
     private var privacy: some View {
@@ -470,6 +478,20 @@ struct SettingsView: View {
                     Text("已开放").font(.caption).foregroundStyle(.green)
                 }
             }
+
+            SectionHeader("行为驱动动作")
+            GroupCard {
+                GRow(title: "按交互自动切动作",
+                     subtitle: "拖得慢→走、拖得快→跑、对话中→打电话、空闲→待着（需先在宠物页生成对应动作）") {
+                    Toggle("", isOn: behaviorBinding).labelsHidden().toggleStyle(.switch)
+                }
+                RowDivider(); mapRow("慢速拖动", "slow", state.config.mapSlow)
+                RowDivider(); mapRow("快速拖动", "fast", state.config.mapFast)
+                RowDivider(); mapRow("空闲待着", "idle", state.config.mapIdle)
+                RowDivider(); mapRow("对话中", "chat", state.config.mapChat)
+            }
+            Text("对应动作没生成时会自动回退到静态形象 / 程序动画，不影响使用。")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 

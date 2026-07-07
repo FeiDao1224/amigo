@@ -137,13 +137,21 @@ final class AppState: ObservableObject {
         do {
             _ = try await SpriteGen.generate(action: action, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
             actionStatus[action.rawValue] = "success"
-            if config.activeAction == action.rawValue { onGeneratedFramesChanged?() }
+            onGeneratedFramesChanged?()
         } catch {
             actionStatus[action.rawValue] = "failed:\(error.localizedDescription)"
         }
     }
 
     func setActiveAction(_ a: String) { config.activeAction = a; persist(); onGeneratedFramesChanged?() }
+    func setBehaviorDriven(_ v: Bool) { config.behaviorDriven = v; persist(); onGeneratedFramesChanged?() }
+    func setMap(_ trigger: String, _ action: String) {
+        switch trigger {
+        case "slow": config.mapSlow = action; case "fast": config.mapFast = action
+        case "idle": config.mapIdle = action; case "chat": config.mapChat = action; default: break
+        }
+        persist(); onGeneratedFramesChanged?()
+    }
 
     // MARK: 长期记忆
     func addMemory(content: String, category: String, longTerm: Bool) {

@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
     private var cursorTimer: Timer?
     private var dragOffset: CGSize?              // 拖动：绝对鼠标坐标锚点
+    private var lastDragPos: NSPoint?            // 拖动测速
+    private var lastDragTime: TimeInterval?
+    private var dragSpeed: CGFloat = 0           // 平滑后的拖动速度 pt/s
     private let state = AppState()
     private let runtime = PetRuntime()
     private let chat = ChatSession()
@@ -28,11 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         runtime.activeCard = { [weak state] in state?.currentCard() ?? .default }
         runtime.memoryContext = { [weak state] in state?.memoryContext() ?? "" }
         runtime.setCharacter(state.config.character)
-        runtime.loadActionFrames(state.config.activeAction)
-        state.onGeneratedFramesChanged = { [weak self] in
-            guard let self else { return }
-            self.runtime.loadActionFrames(self.state.config.activeAction)
-        }
+        state.onGeneratedFramesChanged = { [weak self] in self?.runtime.invalidateActions() }
         state.onCharacterChanged = { [weak self] id in
             PetImages.clearCache()
             self?.runtime.setCharacter(id)
@@ -177,6 +176,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else if runtime.eyeVector != .zero {
             runtime.eyeVector = .zero
         }
+
+        updateBehaviorAction()
+    }
+
+    // 行为驱动：按交互状态切动作（对话→打电话 / 快拖→跑 / 慢拖→走 / 空闲→待着）
+    private func updateBehaviorAction() {
+        guard state.config.behaviorDriven else { runtime.showAction(state.config.activeAction); return }
+        let key: String
+        if runtime.chatting { key = state.config.mapChat }
+        else if dragOffset != nil { key = dragSpeed > 320 ? state.config.mapFast : state.config.mapSlow }
+        else { key = state.config.mapIdle }
+        runtime.showAction(key)
     }
 
     // MARK: 拖动（绝对坐标，无反馈抖动）
@@ -188,8 +199,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         let off = dragOffset!
         panel.setFrameOrigin(NSPoint(x: m.x - off.width, y: m.y - off.height))
+        // 拖动速度（平滑）→ 区分走/跑
+        let now = Date().timeIntervalSinceReferenceDate
+        if let lp = lastDragPos, let lt = lastDragTime, now > lt {
+            let inst = hypot(m.x - lp.x, m.y - lp.y) / CGFloat(now - lt)
+            dragSpeed = dragSpeed * 0.6 + inst * 0.4
+        }
+        lastDragPos = m; lastDragTime = now
         runtime.setState(ended ? .idle : .dragged)
-        if ended { dragOffset = nil; state.setPetPosition(panel.frame.origin) }
+        if ended {
+            dragOffset = nil; lastDragPos = nil; lastDragTime = nil; dragSpeed = 0
+            state.setPetPosition(panel.frame.origin)
+        }
     }
 
     // 点宠物：在它下方开/关输入框（不再开聊天窗）

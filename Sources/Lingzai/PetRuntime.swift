@@ -15,11 +15,21 @@ final class PetRuntime: ObservableObject {
     @Published var actionFPS: Double = 3
     let animator = PetAnimator()
 
-    /// 加载某动作的 AI 帧（没有则清空，回退到静态/程序动画）
-    func loadActionFrames(_ action: String) {
-        actionFrames = SpriteGen.loadFrames(action)
-        actionFPS = PetAnimAction(rawValue: action)?.fps ?? 3
+    private var currentActionKey = ""
+    private var framesCache: [String: [NSImage]] = [:]
+
+    /// 切到某动作（带缓存，可高频调用）。该动作没生成帧则清空 → 回退静态/程序动画。
+    func showAction(_ key: String) {
+        guard key != currentActionKey else { return }
+        currentActionKey = key
+        let frames = framesCache[key] ?? {
+            let f = SpriteGen.loadFrames(key); framesCache[key] = f; return f
+        }()
+        actionFrames = frames
+        actionFPS = PetAnimAction(rawValue: key)?.fps ?? 3
     }
+    /// 生成/切换后刷新缓存，下一帧重新加载
+    func invalidateActions() { framesCache.removeAll(); currentActionKey = "" }
 
     private var stateWork: DispatchWorkItem?
     func setState(_ s: PetState, revertAfter: TimeInterval? = nil) {

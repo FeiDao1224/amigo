@@ -3,16 +3,16 @@ import ImageIO
 
 /// 5 个默认动作。prompt 强调"同尺寸/居中/双脚同一基线"，配合帧对齐消除跳动。
 enum PetAnimAction: String, CaseIterable, Identifiable {
-    case work, phone, think, idle, run
+    case work, phone, think, idle, run, walk
     var id: String { rawValue }
     var title: String {
-        switch self { case .work: "工作"; case .phone: "打电话"; case .think: "思考"; case .idle: "待着"; case .run: "跑动" }
+        switch self { case .work: "工作"; case .phone: "打电话"; case .think: "思考"; case .idle: "待着"; case .run: "跑动"; case .walk: "走路" }
     }
     var emoji: String {
-        switch self { case .work: "💻"; case .phone: "📞"; case .think: "🤔"; case .idle: "🧍"; case .run: "🏃" }
+        switch self { case .work: "💻"; case .phone: "📞"; case .think: "🤔"; case .idle: "🧍"; case .run: "🏃"; case .walk: "🚶" }
     }
     var fps: Double {
-        switch self { case .work: 4; case .phone: 4; case .think: 3; case .idle: 3; case .run: 8 }
+        switch self { case .work: 4; case .phone: 4; case .think: 3; case .idle: 3; case .run: 8; case .walk: 5 }
     }
     private var motion: String {
         switch self {
@@ -26,6 +26,8 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
             return "The character stands still and relaxed, front view — a VERY SUBTLE idle loop. Frame1: neutral. Frame2: eyes blink (closed) with a tiny arm sway. Frame3: gentle breath, slight weight shift onto one foot, the other foot scuffs a little. Frame4: settle back to neutral. Keep the motion calm and minimal."
         case .run:
             return "The character is running to the right in side profile — a 4-frame run cycle. Frame1: right leg forward, left leg back, arms swinging. Frame2: legs passing under the body. Frame3: left leg forward, right leg back, arms swinging opposite. Frame4: legs passing again. All frames show the SAME right-facing side profile."
+        case .walk:
+            return "The character is walking to the right in side profile — a calm, relaxed 4-frame walk cycle (slower and gentler than a run). Frame1: right leg forward, left leg back, arms gently swinging. Frame2: legs passing under the body. Frame3: left leg forward, right leg back. Frame4: legs passing again. All frames show the SAME right-facing side profile with an even, unhurried stride."
         }
     }
     var prompt: String {
@@ -137,6 +139,21 @@ enum SpriteGen {
             let x = i % w, y = i / w
             if x+1 < w { st.append(i+1) }; if x > 0 { st.append(i-1) }
             if y+1 < h { st.append(i+w) }; if y > 0 { st.append(i-w) }
+        }
+        // 去白边：把仍贴着透明、且接近白/浅灰的边缘像素也抹掉（消除运动时漏白）；内部白不挨透明，保住
+        for _ in 0..<2 {
+            var kill = [Int]()
+            for i in 0..<(w * h) {
+                let o = i * 4
+                if px[o+3] == 0 { continue }
+                guard min(px[o], px[o+1], px[o+2]) > 180 else { continue }   // 只处理接近白/浅灰
+                let x = i % w, y = i / w
+                let edge = (x+1 < w && px[(i+1)*4+3] == 0) || (x > 0 && px[(i-1)*4+3] == 0)
+                    || (y+1 < h && px[(i+w)*4+3] == 0) || (y > 0 && px[(i-w)*4+3] == 0)
+                if edge { kill.append(o) }
+            }
+            if kill.isEmpty { break }
+            for o in kill { px[o] = 0; px[o+1] = 0; px[o+2] = 0; px[o+3] = 0 }
         }
         return c.makeImage()
     }

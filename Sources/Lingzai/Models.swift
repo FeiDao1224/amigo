@@ -23,7 +23,12 @@ struct Config: Codable {
     var character: String = "cat"       // 宠物形象：cat / lazy_fish / anxious_fish / shocked_fish
     var licenseEmail: String = ""       // 激活：买家邮箱
     var licenseCode: String = ""        // 激活：离线签名激活码
-    var activeAction: String = "idle"   // 当前播放的 AI 生成动作：work/phone/think/idle/run
+    var activeAction: String = "idle"   // 当前播放的 AI 生成动作（行为驱动关闭时用）
+    var behaviorDriven: Bool = true     // 行为驱动：按交互自动切动作
+    var mapSlow: String = "walk"        // 慢速拖动 → 走
+    var mapFast: String = "run"         // 快速拖动 → 跑
+    var mapIdle: String = "idle"        // 空闲 → 待着
+    var mapChat: String = "phone"       // 对话中 → 打电话
 }
 
 /// 配置持久化：~/Library/Application Support/Lingzai/config.json
