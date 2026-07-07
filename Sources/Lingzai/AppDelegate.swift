@@ -183,11 +183,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // 行为驱动：按交互状态切动作（对话→打电话 / 快拖→跑 / 慢拖→走 / 空闲→待着）
     private func updateBehaviorAction() {
         guard state.config.behaviorDriven else { runtime.showAction(state.config.activeAction); return }
-        let key: String
-        if runtime.chatting { key = state.config.mapChat }
-        else if dragOffset != nil { key = dragSpeed > 320 ? state.config.mapFast : state.config.mapSlow }
-        else { key = state.config.mapIdle }
-        runtime.showAction(key)
+        if runtime.chatting { runtime.showAction(state.config.mapChat); return }
+        if dragOffset != nil {
+            let fast = dragSpeed > 320
+            runtime.showAction(fast ? state.config.mapFast : state.config.mapSlow, fallbackMotion: fast ? 2 : 1)
+        } else {
+            runtime.showAction(state.config.mapIdle)
+        }
     }
 
     // MARK: 拖动（绝对坐标，无反馈抖动）

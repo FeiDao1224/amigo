@@ -13,23 +13,29 @@ final class PetRuntime: ObservableObject {
     @Published var characterImageName: String = "cat"   // cat=代码猫，或 lazy_fish / anxious_fish / shocked_fish
     @Published var actionFrames: [NSImage] = []         // 当前动作的 AI 帧：非空则优先循环播放
     @Published var actionFPS: Double = 3
+    @Published var moveMotion: Int = 0                  // 0=无 1=走 2=跑（没生成对应动作时的程序位移兜底）
     let animator = PetAnimator()
 
     private var currentActionKey = ""
     private var framesCache: [String: [NSImage]] = [:]
 
-    /// 切到某动作（带缓存，可高频调用）。该动作没生成帧则清空 → 回退静态/程序动画。
-    func showAction(_ key: String) {
-        guard key != currentActionKey else { return }
-        currentActionKey = key
+    /// 切到某动作（带缓存，可高频调用）。没生成该动作帧时：**保留当前帧** + 用 fallbackMotion 程序位移表达。
+    func showAction(_ key: String, fallbackMotion: Int = 0) {
         let frames = framesCache[key] ?? {
             let f = SpriteGen.loadFrames(key); framesCache[key] = f; return f
         }()
+        if frames.isEmpty {
+            if moveMotion != fallbackMotion { moveMotion = fallbackMotion }
+            return
+        }
+        if moveMotion != 0 { moveMotion = 0 }
+        guard key != currentActionKey else { return }
+        currentActionKey = key
         actionFrames = frames
         actionFPS = PetAnimAction(rawValue: key)?.fps ?? 3
     }
     /// 生成/切换后刷新缓存，下一帧重新加载
-    func invalidateActions() { framesCache.removeAll(); currentActionKey = "" }
+    func invalidateActions() { framesCache.removeAll(); currentActionKey = ""; moveMotion = 0 }
 
     private var stateWork: DispatchWorkItem?
     func setState(_ s: PetState, revertAfter: TimeInterval? = nil) {

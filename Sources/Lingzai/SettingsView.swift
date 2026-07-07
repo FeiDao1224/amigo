@@ -63,6 +63,80 @@ private struct ActionPreview: View {
     }
 }
 
+// 形象卡片：悬停时光斑跟随鼠标 + 彩色发光描边 + 抬升
+private struct CharacterCard: View {
+    let id: String
+    let name: String
+    let selected: Bool
+    let onTap: () -> Void
+    @State private var hover: CGPoint?
+    private let w: CGFloat = 92, h: CGFloat = 116
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                if let img = PetImages.image(id) {
+                    Image(nsImage: img).resizable().interpolation(.none).scaledToFit().padding(8)
+                } else {
+                    Image(systemName: "pawprint.fill").font(.title).foregroundStyle(.orange)
+                }
+            }
+            .frame(width: 74, height: 82)
+            Text(name).font(.system(size: 11, weight: selected ? .semibold : .regular))
+        }
+        .frame(width: w, height: h)
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.05))
+                if let p = hover {
+                    RadialGradient(colors: [Color.accentColor.opacity(0.38), .clear],
+                                   center: UnitPoint(x: p.x / w, y: p.y / h), startRadius: 2, endRadius: 92)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14).strokeBorder(
+                selected ? AnyShapeStyle(Color.accentColor)
+                    : (hover != nil
+                        ? AnyShapeStyle(AngularGradient(colors: [.blue, .purple, .pink, .orange, .blue], center: .center))
+                        : AnyShapeStyle(Color.white.opacity(0.08))),
+                lineWidth: selected || hover != nil ? 2 : 1)
+        )
+        .scaleEffect(hover != nil ? 1.05 : 1)
+        .shadow(color: .black.opacity(hover != nil ? 0.18 : 0), radius: 8, y: 4)
+        .animation(.easeOut(duration: 0.18), value: hover != nil)
+        .animation(.easeOut(duration: 0.18), value: selected)
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .onContinuousHover { phase in
+            switch phase { case .active(let p): hover = p; case .ended: hover = nil }
+        }
+        .onTapGesture { onTap() }
+    }
+}
+
+private struct CharacterPicker: View {
+    @ObservedObject var state: AppState
+    private var chars: [(String, String)] {
+        var a = [("cat", "默认小猫"), ("lazy_fish", "摸鱼鱼"), ("anxious_fish", "看表鱼"), ("shocked_fish", "震惊鱼")]
+        if FileManager.default.fileExists(atPath: PetImages.dir.appendingPathComponent("custom.png").path) {
+            a.append(("custom", "我的形象"))
+        }
+        return a
+    }
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(chars, id: \.0) { it in
+                    CharacterCard(id: it.0, name: it.1, selected: state.config.character == it.0) {
+                        state.setCharacter(it.0)
+                    }
+                }
+            }.padding(.horizontal, 2).padding(.vertical, 6)
+        }
+    }
+}
+
 // Pro 激活页：离线邮箱+激活码验签解锁
 private struct ProPane: View {
     @ObservedObject var state: AppState
@@ -396,17 +470,14 @@ struct SettingsView: View {
                     Toggle("", isOn: eyesBinding).labelsHidden().toggleStyle(.switch)
                 }
                 RowDivider()
-                GRow(title: "形象", subtitle: "选角色（放好透明图后生效；小猫用眼睛跟随）") {
-                    Picker("", selection: Binding(get: { state.config.character }, set: { state.setCharacter($0) })) {
-                        Text("默认小猫").tag("cat")
-                        Text("摸鱼鱼").tag("lazy_fish")
-                        Text("看表鱼").tag("anxious_fish")
-                        Text("震惊鱼").tag("shocked_fish")
-                        if FileManager.default.fileExists(atPath: PetImages.dir.appendingPathComponent("custom.png").path) {
-                            Text("我的形象").tag("custom")
-                        }
-                    }.labelsHidden().frame(width: 150)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("形象").font(.system(size: 13, weight: .medium))
+                    Text("选个角色（悬停有光效）；AI 动作以当前形象为参考")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                    CharacterPicker(state: state)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14).padding(.vertical, 11)
             }
             SectionHeader("自定义形象")
             CustomPetCard(state: state, onUpgrade: { sel = "pro" })

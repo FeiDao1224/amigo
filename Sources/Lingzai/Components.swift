@@ -59,6 +59,22 @@ struct PetMotion: ViewModifier {
     }
 }
 
+// 走/跑的程序位移（没生成对应动作帧时的兜底反馈，叠加在当前帧上）
+struct MoveMotion: ViewModifier {
+    let kind: Int          // 0 无 / 1 走 / 2 跑
+    let time: TimeInterval
+    func body(content: Content) -> some View {
+        var dx = 0.0, dy = 0.0, rot = 0.0
+        let t = time
+        switch kind {
+        case 1: dx = sin(t * 6) * 3;  dy = -abs(sin(t * 12)) * 2; rot = sin(t * 6) * 2
+        case 2: dx = sin(t * 11) * 6; dy = -abs(sin(t * 20)) * 4; rot = sin(t * 11) * 4
+        default: break
+        }
+        return content.rotationEffect(.degrees(rot), anchor: .bottom).offset(x: dx, y: dy)
+    }
+}
+
 // 三角形（猫耳 / 鼻子 / 气泡尾巴）
 struct Triangle: Shape {
     func path(in r: CGRect) -> Path {
@@ -68,6 +84,53 @@ struct Triangle: Shape {
         p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
         p.closeSubpath()
         return p
+    }
+}
+
+// 思考云：一圈外凸的椭圆 + 中心椭圆，填充即并集（无内部线）
+struct CloudShape: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        let cx = r.midX, cy = r.midY, rx = r.width / 2, ry = r.height / 2
+        let base = min(rx, ry), n = 8
+        for i in 0..<n {
+            let ang = CGFloat(i) / CGFloat(n) * 2 * .pi - .pi / 2
+            let rr = base * (0.62 + 0.22 * abs(sin(CGFloat(i) * 2.1)))
+            let ex = cx + (rx - rr * 0.72) * cos(ang)
+            let ey = cy + (ry - rr * 0.72) * sin(ang)
+            p.addEllipse(in: CGRect(x: ex - rr, y: ey - rr, width: rr * 2, height: rr * 2))
+        }
+        p.addEllipse(in: CGRect(x: r.minX + rx * 0.18, y: r.minY + ry * 0.18,
+                                width: r.width * 0.64, height: r.height * 0.64))
+        return p
+    }
+}
+
+// 思考云容器：白填充 + 深色描边（描边=深色云略大垫在后面）
+struct ThoughtCloud<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        content
+            .padding(.horizontal, 24).padding(.vertical, 20)
+            .background(
+                ZStack {
+                    CloudShape().fill(Color(white: 0.24)).padding(-2.5)
+                    CloudShape().fill(.white)
+                }
+            )
+    }
+}
+
+// 思考气泡下方那串小圆（从左下冒出）
+struct ThoughtDots: View {
+    var body: some View {
+        VStack(spacing: 3) { dot(13); dot(8); dot(5) }.offset(x: -34)
+    }
+    private func dot(_ s: CGFloat) -> some View {
+        ZStack {
+            Circle().fill(Color(white: 0.24)).frame(width: s + 2.5, height: s + 2.5)
+            Circle().fill(.white).frame(width: s, height: s)
+        }
     }
 }
 

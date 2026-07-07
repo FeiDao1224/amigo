@@ -18,51 +18,49 @@ struct PetView: View {
     @FocusState private var inputFocused: Bool
 
     var body: some View {
-        VStack(spacing: 4) {
-            bubble
+        VStack(spacing: 2) {
+            cloudBubble
             cat
-            if rt.chatting { inputField }
         }
         .padding(.bottom, 8)
         .frame(width: 260, height: 320, alignment: .bottom)
     }
 
-    // 连到头顶、带向下小尾巴的气泡
-    @ViewBuilder private var bubble: some View {
-        if !rt.bubbleText.isEmpty {
-            VStack(spacing: 0) {
-                Text(rt.bubbleText)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 14))
-                    .frame(maxWidth: 200)
-                Triangle().fill(.white)
-                    .frame(width: 16, height: 9)
-                    .rotationEffect(.degrees(180))
-                    .offset(y: -1)
+    // 思考云气泡：说话时显示文字；长按后在云里输入
+    @ViewBuilder private var cloudBubble: some View {
+        if rt.chatting || !rt.bubbleText.isEmpty {
+            VStack(spacing: 2) {
+                ThoughtCloud {
+                    if rt.chatting {
+                        HStack(spacing: 5) {
+                            TextField("跟阿豆说…", text: $chatInput)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 13))
+                                .focused($inputFocused)
+                                .frame(width: 124)
+                                .onSubmit(send)
+                            Button(action: send) {
+                                Image(systemName: "arrow.up.circle.fill").font(.system(size: 18))
+                            }
+                            .buttonStyle(.plain).foregroundStyle(.blue)
+                        }
+                        .onAppear { inputFocused = true }
+                        .onExitCommand { rt.chatting = false }
+                    } else {
+                        Text(rt.bubbleText)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.black.opacity(0.8))
+                            .frame(maxWidth: 172)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                ThoughtDots()
             }
-            .shadow(color: .black.opacity(0.16), radius: 7, y: 3)
-            .transition(.scale(scale: 0.8, anchor: .bottom).combined(with: .opacity))
+            .shadow(color: .black.opacity(0.14), radius: 6, y: 3)
+            .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
         }
     }
 
-    // 点宠物在它下方弹出的输入框
-    private var inputField: some View {
-        HStack(spacing: 6) {
-            TextField("跟阿豆说…", text: $chatInput)
-                .textFieldStyle(.roundedBorder)
-                .focused($inputFocused)
-                .frame(width: 150)
-                .onSubmit(send)
-            Button("发", action: send).controlSize(.small).buttonStyle(.borderedProminent)
-        }
-        .padding(6)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
-        .onAppear { inputFocused = true }
-        .onExitCommand { rt.chatting = false }
-    }
     private func send() {
         let t = chatInput.trimmingCharacters(in: .whitespaces)
         chatInput = ""
@@ -80,6 +78,7 @@ struct PetView: View {
                 Image(nsImage: rt.actionFrames[i]).resizable().interpolation(.none).scaledToFit()
                     .frame(width: 92, height: 140)
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
+                    .modifier(MoveMotion(kind: rt.moveMotion, time: t))
             } else if rt.animator.currentFrame != nil {
                 petVisual
             } else {
@@ -87,7 +86,8 @@ struct PetView: View {
             }
         }
         .contentShape(Circle())
-        .onTapGesture { onChat() }
+        .onTapGesture { onSpeak() }
+        .onLongPressGesture(minimumDuration: 0.35) { onChat() }
         .highPriorityGesture(
             DragGesture(minimumDistance: 6)
                 .onChanged { _ in onDrag(false) }
