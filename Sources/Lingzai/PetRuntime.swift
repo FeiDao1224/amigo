@@ -14,6 +14,7 @@ final class PetRuntime: ObservableObject {
     @Published var actionFrames: [NSImage] = []         // 当前动作的 AI 帧：非空则优先循环播放
     @Published var actionFPS: Double = 3
     @Published var moveMotion: Int = 0                  // 0=无 1=走 2=跑（没生成对应动作时的程序位移兜底）
+    @Published var waitingReply = false                 // 发消息后等模型返回：显示"打电话"
     let animator = PetAnimator()
 
     private var currentActionKey = ""
@@ -33,7 +34,7 @@ final class PetRuntime: ObservableObject {
         guard cacheKey != currentActionKey else { return }
         currentActionKey = cacheKey
         actionFrames = frames
-        actionFPS = PetAnimAction(rawValue: key)?.fps ?? 3
+        actionFPS = PetAnimAction(rawValue: key)?.fps ?? 4   // 自定义动作默认 4fps
     }
     /// 生成/切形象后刷新缓存，下一帧重新加载
     func invalidateActions() { framesCache.removeAll(); currentActionKey = ""; moveMotion = 0; actionFrames = [] }

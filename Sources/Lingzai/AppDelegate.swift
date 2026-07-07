@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var lastDragPos: NSPoint?            // 拖动测速
     private var lastDragTime: TimeInterval?
     private var dragSpeed: CGFloat = 0           // 平滑后的拖动速度 pt/s
+    private var rightClickMonitor: Any?          // 右键宠物 → 隐藏
     private let state = AppState()
     private let runtime = PetRuntime()
     private let chat = ChatSession()
@@ -48,7 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let mem = s.memoryContext()
             return mem.isEmpty ? base : base + "\n\n" + mem
         }
-        chat.onReply = { [weak self] r in self?.runtime.showBubble(r) }
+        chat.onReply = { [weak self] r in
+            self?.runtime.waitingReply = false
+            self?.runtime.showBubble(r)
+        }
         chat.onInferred = { [weak state] items in state?.addInferred(items) }
         chat.isStealth = { [weak state] in state?.config.stealth ?? false }
 
@@ -57,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         setupStatusItem()
         setupPetPanel()
+        setupRightClickToHide()
         startCursorTracking()
         maybeMorningGreeting()
         // 启动就冒个云气泡，让你立刻看到新气泡 + 知道长按能说话
@@ -141,7 +146,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             onWater: { [weak self] in self?.runtime.feedWater() },
             onFile: { [weak self] url in self?.runtime.handleFile(url) },
             onChat: { [weak self] in self?.startInlineChat() },
-            onSend: { [weak self] text in self?.chat.send(text) }
+            onSend: { [weak self] text in
+                guard let self else { return }
+                self.runtime.chatting = false            // 收起输入框
+                self.runtime.waitingReply = true         // 进入"打电话"等回复
+                self.runtime.showBubble("…", sticky: true)
+                self.chat.send(text)
+            }
         )
         panel.contentView = NSHostingView(rootView: view)
 
@@ -176,8 +187,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // 行为驱动：按交互状态切动作（对话→打电话 / 快拖→跑 / 慢拖→走 / 空闲→待着）
     private func updateBehaviorAction() {
+        if runtime.waitingReply || runtime.chatting {   // 对话中 / 等回复 → 打电话
+            runtime.showAction(state.config.mapChat); return
+        }
         guard state.config.behaviorDriven else { runtime.showAction(state.config.activeAction); return }
-        if runtime.chatting { runtime.showAction(state.config.mapChat); return }
         if dragOffset != nil {
             let fast = dragSpeed > 320
             runtime.showAction(fast ? state.config.mapFast : state.config.mapSlow, fallbackMotion: fast ? 2 : 1)
@@ -206,6 +219,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if ended {
             dragOffset = nil; lastDragPos = nil; lastDragTime = nil; dragSpeed = 0
             state.setPetPosition(panel.frame.origin)
+        }
+    }
+
+    // 右键点在宠物身上 → 直接隐藏（其它功能在菜单栏 / 设置里）
+    private func setupRightClickToHide() {
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
+            guard let self, let panel = self.petPanel, panel.isVisible, event.window === panel else { return event }
+            self.togglePet()
+            return nil
         }
     }
 

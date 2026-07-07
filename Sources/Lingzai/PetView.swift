@@ -91,24 +91,6 @@ struct PetView: View {
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.4).onEnded { _ in onChat() }
         )
-        .contextMenu {
-            Button("摸摸头 🐾") { onSpeak() }
-            Button("喂咖啡 ☕") { onCoffee() }
-            Button("喂水 💧") { onWater() }
-            Divider()
-            Menu("动作调试") {
-                ForEach(PetAction.allCases) { action in
-                    Button(action.displayName) { rt.playAction(action) }
-                }
-                Divider()
-                Button("随机陪伴动作") { rt.playRandomCompanionAction() }
-            }
-            Divider()
-            Button("打开设置…") { onOpenSettings() }
-            Button("隐藏宠物") { onTogglePet() }
-            Divider()
-            Button("退出灵崽") { onQuit() }
-        }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
     }
 

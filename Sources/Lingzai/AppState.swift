@@ -116,7 +116,8 @@ final class AppState: ObservableObject {
         for name in ["memories.json", "todos.json"] { try? fm.removeItem(at: dataDir.appendingPathComponent(name)) }
         try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
         memories = []; tasks = []
-        config.customCard = nil; config.character = "cat"; persist()
+        config.customCard = nil; config.personas = [:]; config.customActions = []
+        config.character = "cat"; persist()
         PetImages.clearCache(); onCharacterChanged?("cat")
     }
 
@@ -124,38 +125,64 @@ final class AppState: ObservableObject {
     @Published var actionStatus: [String: String] = [:]   // action → "generating"/"success"/"failed:<msg>"
     var onGeneratedFramesChanged: (() -> Void)?
 
-    @MainActor
-    func generateAction(_ action: PetAnimAction) async {
-        guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
-            actionStatus[action.rawValue] = "failed:先在「模型」页配置并启用一个模型"; return
-        }
-        let refURL = PetImages.dir.appendingPathComponent("\(config.character).png")
-        guard let ref = try? Data(contentsOf: refURL), NSImage(data: ref) != nil else {
-            actionStatus[action.rawValue] = "failed:当前形象没有图片可作参考（先选一个鱼 / 做个自定义形象）"; return
-        }
-        actionStatus[action.rawValue] = "generating"
-        do {
-            _ = try await SpriteGen.generate(action: action, character: config.character, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
-            actionStatus[action.rawValue] = "success"
-            onGeneratedFramesChanged?()
-        } catch {
-            actionStatus[action.rawValue] = "failed:\(error.localizedDescription)"
-        }
+    // MARK: 动作（内置 + 用户自建，统一 ActionDef）
+    struct ActionDef: Identifiable, Hashable {
+        let id: String, title: String, emoji: String, prompt: String
+        let fps: Double, builtin: Bool
+    }
+    var allActions: [ActionDef] {
+        let b = PetAnimAction.allCases.map { ActionDef(id: $0.rawValue, title: $0.title, emoji: $0.emoji, prompt: $0.prompt, fps: $0.fps, builtin: true) }
+        let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", prompt: $0.prompt, fps: 4, builtin: false) }
+        return b + c
+    }
+    func actionDef(_ id: String) -> ActionDef? { allActions.first { $0.id == id } }
+
+    @discardableResult
+    func addCustomAction(title: String, desc: String) -> String {
+        let d = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = d + "\n\nArrange the 4 frames in a 2x2 grid on a plain solid white background. Detailed 32-bit pixel art, exact same character design in every frame. CRITICAL FOR ANIMATION: same size, horizontally centered, feet on the SAME horizontal ground line in every frame so the frames loop cleanly. No text, no letters, no grid lines, no borders."
+        let a = CustomAction(title: title.trimmingCharacters(in: .whitespaces).isEmpty ? "自定义动作" : title, prompt: prompt)
+        config.customActions.append(a); persist()
+        return a.id
+    }
+    func deleteCustomAction(_ id: String) {
+        config.customActions.removeAll { $0.id == id }
+        if config.activeAction == id { config.activeAction = "idle" }
+        persist(); onGeneratedFramesChanged?()
     }
 
     func setActiveAction(_ a: String) { config.activeAction = a; persist(); onGeneratedFramesChanged?() }
 
+    @MainActor
+    func generateActionDef(_ def: ActionDef) async {
+        guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
+            actionStatus[def.id] = "failed:先在「模型」页配置并启用一个模型"; return
+        }
+        let refURL = PetImages.dir.appendingPathComponent("\(config.character).png")
+        guard let ref = try? Data(contentsOf: refURL), NSImage(data: ref) != nil else {
+            actionStatus[def.id] = "failed:当前形象没有图片可作参考（先选一个鱼 / 做个自定义形象）"; return
+        }
+        actionStatus[def.id] = "generating"
+        do {
+            _ = try await SpriteGen.generate(actionId: def.id, prompt: def.prompt, character: config.character, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
+            actionStatus[def.id] = "success"
+            onGeneratedFramesChanged?()
+        } catch {
+            actionStatus[def.id] = "failed:\(error.localizedDescription)"
+        }
+    }
+
     @Published var batchGenerating = false
     @Published var batchProgress = ""
-    /// 一键生成全部动作（逐个，串行）
+    /// 一键生成全部动作（含自建，串行）
     @MainActor
     func generateAllActions() async {
         guard !batchGenerating else { return }
         batchGenerating = true
-        let all = PetAnimAction.allCases
-        for (i, a) in all.enumerated() {
-            batchProgress = "\(i + 1)/\(all.count) \(a.title)"
-            await generateAction(a)
+        let all = allActions
+        for (i, d) in all.enumerated() {
+            batchProgress = "\(i + 1)/\(all.count) \(d.title)"
+            await generateActionDef(d)
         }
         batchGenerating = false; batchProgress = ""
     }
@@ -234,10 +261,10 @@ final class AppState: ObservableObject {
         return nil
     }
 
-    // MARK: 性格
-    func currentCard() -> CardData { config.customCard ?? .default }
-    func setCard(_ c: CardData) { config.customCard = c; persist() }
-    func resetCard() { config.customCard = nil; persist() }
+    // MARK: 性格（每个形象一套人设）
+    func currentCard() -> CardData { config.personas[config.character] ?? config.customCard ?? .default }
+    func setCard(_ c: CardData) { config.personas[config.character] = c; persist() }
+    func resetCard() { config.personas[config.character] = nil; persist() }
 
     /// 问答 → 大模型生成性格
     func generatePersonality(answers: String) async -> Result<CardData, Error> {

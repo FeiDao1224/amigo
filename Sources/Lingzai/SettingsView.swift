@@ -8,31 +8,36 @@ private struct NavItem: Identifiable {
     var id: String { key }
 }
 
-// AI 动作：网格卡片（预览 + 生成/重生成 + 设为当前）
+// 动作卡片：预览 + 生成/重生成 + 点选默认 + 自定义可删
 private struct ActionRow: View {
     @ObservedObject var state: AppState
-    let action: PetAnimAction
-    private var status: String { state.actionStatus[action.rawValue] ?? "" }
+    let def: AppState.ActionDef
+    private var status: String { state.actionStatus[def.id] ?? "" }
     private var character: String { state.config.character }
-    private var made: Bool { SpriteGen.exists(character: character, action: action.rawValue) }
-    private var isCurrent: Bool { state.config.activeAction == action.rawValue }
+    private var made: Bool { SpriteGen.exists(character: character, action: def.id) }
+    private var isCurrent: Bool { state.config.activeAction == def.id }
 
     var body: some View {
         VStack(spacing: 6) {
-            ActionPreview(character: character, action: action).id("\(character)-\(status)")
+            ActionPreview(character: character, id: def.id, fps: def.fps).id("\(character)-\(status)")
                 .frame(maxWidth: .infinity).frame(height: 72)
-            Text("\(action.emoji) \(action.title)").font(.system(size: 12, weight: .medium))
+            Text("\(def.emoji) \(def.title)").font(.system(size: 12, weight: .medium)).lineLimit(1)
             statusText
-            Button(status == "generating" ? "生成中" : (made ? "重生成" : "生成")) {
-                Task { await state.generateAction(action) }
-            }.controlSize(.mini).buttonStyle(.borderedProminent).disabled(status == "generating")
+            HStack(spacing: 6) {
+                if !def.builtin {
+                    Button { state.deleteCustomAction(def.id) } label: { Image(systemName: "trash") }.controlSize(.mini)
+                }
+                Button(status == "generating" ? "生成中" : (made ? "重生成" : "生成")) {
+                    Task { await state.generateActionDef(def) }
+                }.controlSize(.mini).buttonStyle(.borderedProminent).disabled(status == "generating")
+            }
         }
         .padding(10)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isCurrent ? Color.accentColor : .clear, lineWidth: 2))
         .contentShape(RoundedRectangle(cornerRadius: 12))
-        .onTapGesture { state.setActiveAction(action.rawValue) }
+        .onTapGesture { state.setActiveAction(def.id) }
     }
     @ViewBuilder private var statusText: some View {
         if status == "generating" { Text("生成中…").font(.caption2).foregroundStyle(.secondary) }
@@ -42,10 +47,11 @@ private struct ActionRow: View {
     }
 }
 
-// AI 动作预览：循环播放该形象该动作的帧
+// 动作预览：循环播放该形象该动作的帧
 private struct ActionPreview: View {
     let character: String
-    let action: PetAnimAction
+    let id: String
+    let fps: Double
     @State private var frames: [NSImage] = []
     var body: some View {
         ZStack {
@@ -54,12 +60,50 @@ private struct ActionPreview: View {
                 Image(systemName: "sparkles").foregroundStyle(.secondary)
             } else {
                 TimelineView(.animation) { tl in
-                    let i = Int(tl.date.timeIntervalSinceReferenceDate * action.fps) % frames.count
+                    let i = Int(tl.date.timeIntervalSinceReferenceDate * fps) % frames.count
                     Image(nsImage: frames[i]).resizable().interpolation(.none).scaledToFit().padding(4)
                 }
             }
         }
-        .onAppear { frames = SpriteGen.loadFrames(character: character, action: action.rawValue) }
+        .onAppear { frames = SpriteGen.loadFrames(character: character, action: id) }
+    }
+}
+
+// 新建动作：描述一个动作 → 生成
+private struct NewActionCard: View {
+    @ObservedObject var state: AppState
+    @State private var show = false
+    @State private var title = ""
+    @State private var desc = ""
+    var body: some View {
+        Button { show = true } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.secondary)
+                Text("新建动作").font(.system(size: 12, weight: .medium))
+                Text("描述一个动作").font(.caption2).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity).frame(height: 130)
+            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [5])).foregroundStyle(.secondary.opacity(0.5)))
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $show, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("新建动作").font(.headline)
+                TextField("名称，如 挥手", text: $title).textFieldStyle(.roundedBorder)
+                TextField("描述动作，如 开心地挥手打招呼", text: $desc, axis: .vertical)
+                    .textFieldStyle(.roundedBorder).lineLimit(2...4)
+                Text("会以当前形象为参考生成；创建后点它的「生成」。").font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button("取消") { show = false }
+                    Button("创建") {
+                        state.addCustomAction(title: title, desc: desc); title = ""; desc = ""; show = false
+                    }.buttonStyle(.borderedProminent).disabled(desc.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }.padding(16).frame(width: 300)
+        }
     }
 }
 
@@ -345,7 +389,7 @@ struct SettingsView: View {
     private func mapRow(_ title: String, _ trigger: String, _ current: String) -> some View {
         GRow(title: title) {
             Picker("", selection: Binding(get: { current }, set: { state.setMap(trigger, $0) })) {
-                ForEach(PetAnimAction.allCases) { a in Text("\(a.emoji) \(a.title)").tag(a.rawValue) }
+                ForEach(state.allActions) { d in Text("\(d.emoji) \(d.title)").tag(d.id) }
             }.labelsHidden().frame(width: 130)
         }
     }
@@ -487,10 +531,11 @@ struct SettingsView: View {
                 }.padding(14)
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], alignment: .leading, spacing: 10) {
-                ForEach(PetAnimAction.allCases) { a in ActionRow(state: state, action: a) }
+                ForEach(state.allActions) { def in ActionRow(state: state, def: def) }
+                NewActionCard(state: state)
             }
 
-            PersonaPane(state: state)
+            PersonaPane(state: state).id(state.config.character)
             MemoryPane(state: state)
             interact
             voice

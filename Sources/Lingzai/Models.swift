@@ -27,8 +27,17 @@ struct Config: Codable {
     var behaviorDriven: Bool = true     // 行为驱动：按交互自动切动作
     var mapSlow: String = "walk"        // 慢速拖动 → 走
     var mapFast: String = "run"         // 快速拖动 → 跑
-    var mapIdle: String = "idle"        // 空闲 → 待着
+    var mapIdle: String = "idle"        // 空闲 → 待着（已由 activeAction 取代，保留兼容）
     var mapChat: String = "phone"       // 对话中 → 打电话
+    var customActions: [CustomAction] = []      // 用户自建动作
+    var personas: [String: CardData] = [:]      // 每个形象一套性格/人设
+}
+
+/// 用户自建的动作（简单描述 → 生成）
+struct CustomAction: Codable, Identifiable, Hashable {
+    var id: String = "custom-" + String(UUID().uuidString.prefix(8))
+    var title: String
+    var prompt: String
 }
 
 /// 配置持久化：~/Library/Application Support/Lingzai/config.json

@@ -55,11 +55,11 @@ enum SpriteGen {
     }
 
     /// 生成某动作（绑定到当前形象）：直连生图 → 2×2 切 4 帧 → 去白底 + 底部居中对齐
-    static func generate(action: PetAnimAction, character: String, referencePNG: Data, baseUrl: String, apiKey: String) async throws -> Int {
-        let data = try await ImageGen.edit(baseUrl: baseUrl, apiKey: apiKey, prompt: action.prompt, referencePNG: referencePNG)
+    static func generate(actionId: String, prompt: String, character: String, referencePNG: Data, baseUrl: String, apiKey: String) async throws -> Int {
+        let data = try await ImageGen.edit(baseUrl: baseUrl, apiKey: apiKey, prompt: prompt, referencePNG: referencePNG)
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let sheet = CGImageSourceCreateImageAtIndex(src, 0, nil) else { throw SpriteGenError.decode }
-        return try sliceRegisterSave(sheet, character: character, action: action.rawValue)
+        return try sliceRegisterSave(sheet, character: character, action: actionId)
     }
 
     /// 一次性迁移：把旧的扁平 generated/<action>/ 归到 generated/<character>/<action>/
