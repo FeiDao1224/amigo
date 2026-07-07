@@ -19,23 +19,24 @@ final class PetRuntime: ObservableObject {
     private var currentActionKey = ""
     private var framesCache: [String: [NSImage]] = [:]
 
-    /// 切到某动作（带缓存，可高频调用）。没生成该动作帧时：**保留当前帧** + 用 fallbackMotion 程序位移表达。
+    /// 切到某动作（按当前形象加载，带缓存，可高频调用）。没生成则**保留当前帧** + fallbackMotion 程序位移。
     func showAction(_ key: String, fallbackMotion: Int = 0) {
-        let frames = framesCache[key] ?? {
-            let f = SpriteGen.loadFrames(key); framesCache[key] = f; return f
+        let cacheKey = "\(characterImageName)/\(key)"
+        let frames = framesCache[cacheKey] ?? {
+            let f = SpriteGen.loadFrames(character: characterImageName, action: key); framesCache[cacheKey] = f; return f
         }()
         if frames.isEmpty {
             if moveMotion != fallbackMotion { moveMotion = fallbackMotion }
             return
         }
         if moveMotion != 0 { moveMotion = 0 }
-        guard key != currentActionKey else { return }
-        currentActionKey = key
+        guard cacheKey != currentActionKey else { return }
+        currentActionKey = cacheKey
         actionFrames = frames
         actionFPS = PetAnimAction(rawValue: key)?.fps ?? 3
     }
-    /// 生成/切换后刷新缓存，下一帧重新加载
-    func invalidateActions() { framesCache.removeAll(); currentActionKey = ""; moveMotion = 0 }
+    /// 生成/切形象后刷新缓存，下一帧重新加载
+    func invalidateActions() { framesCache.removeAll(); currentActionKey = ""; moveMotion = 0; actionFrames = [] }
 
     private var stateWork: DispatchWorkItem?
     func setState(_ s: PetState, revertAfter: TimeInterval? = nil) {
@@ -54,6 +55,7 @@ final class PetRuntime: ObservableObject {
     func setCharacter(_ id: String) {
         characterImageName = id
         animator.loadPet(id)
+        invalidateActions()          // 换形象 → 重新加载该形象的动作帧
     }
 
     func playAction(_ action: PetAction, force: Bool = true) {

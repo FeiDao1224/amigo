@@ -26,38 +26,34 @@ struct PetView: View {
         .frame(width: 260, height: 320, alignment: .bottom)
     }
 
-    // 思考云气泡：说话时显示文字；长按后在云里输入
+    // 干净的毛玻璃气泡：说话显示文字；长按后同一处变输入框
     @ViewBuilder private var cloudBubble: some View {
         if rt.chatting || !rt.bubbleText.isEmpty {
-            VStack(spacing: 2) {
-                ThoughtCloud {
-                    if rt.chatting {
-                        HStack(spacing: 5) {
-                            TextField("跟阿豆说…", text: $chatInput)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 13))
-                                .focused($inputFocused)
-                                .frame(width: 124)
-                                .onSubmit(send)
-                            Button(action: send) {
-                                Image(systemName: "arrow.up.circle.fill").font(.system(size: 18))
-                            }
-                            .buttonStyle(.plain).foregroundStyle(.blue)
-                        }
-                        .onAppear { inputFocused = true }
-                        .onExitCommand { rt.chatting = false }
-                    } else {
-                        Text(rt.bubbleText)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.black.opacity(0.8))
-                            .frame(maxWidth: 172)
-                            .fixedSize(horizontal: false, vertical: true)
+            Group {
+                if rt.chatting {
+                    HStack(spacing: 6) {
+                        TextField("跟阿豆说…", text: $chatInput)
+                            .textFieldStyle(.plain).font(.system(size: 13))
+                            .focused($inputFocused).frame(width: 132)
+                            .onSubmit(send)
+                        Button(action: send) {
+                            Image(systemName: "arrow.up.circle.fill").font(.system(size: 18))
+                        }.buttonStyle(.plain).foregroundStyle(.blue)
                     }
+                    .onAppear { inputFocused = true }
+                    .onExitCommand { rt.chatting = false }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                } else {
+                    Text(rt.bubbleText)
+                        .font(.system(size: 13)).foregroundStyle(.primary)
+                        .frame(maxWidth: 200).fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 14).padding(.vertical, 9)
                 }
-                ThoughtDots()
             }
-            .shadow(color: .black.opacity(0.14), radius: 6, y: 3)
-            .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.14)))
+            .shadow(color: .black.opacity(0.16), radius: 8, y: 3)
+            .transition(.scale(scale: 0.9, anchor: .bottom).combined(with: .opacity))
         }
     }
 

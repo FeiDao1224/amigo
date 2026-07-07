@@ -8,43 +8,46 @@ private struct NavItem: Identifiable {
     var id: String { key }
 }
 
-// AI 动作：一行（动画预览 + 生成/重生成 + 状态 + 设为当前）
+// AI 动作：网格卡片（预览 + 生成/重生成 + 设为当前）
 private struct ActionRow: View {
     @ObservedObject var state: AppState
     let action: PetAnimAction
     private var status: String { state.actionStatus[action.rawValue] ?? "" }
+    private var character: String { state.config.character }
+    private var made: Bool { SpriteGen.exists(character: character, action: action.rawValue) }
+    private var isCurrent: Bool { state.config.activeAction == action.rawValue }
+
     var body: some View {
-        GroupCard {
-            HStack(spacing: 12) {
-                ActionPreview(action: action).id(status)
-                    .frame(width: 56, height: 74)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(action.emoji) \(action.title)").font(.system(size: 13, weight: .semibold))
-                    statusText
+        VStack(spacing: 6) {
+            ActionPreview(character: character, action: action).id("\(character)-\(status)")
+                .frame(maxWidth: .infinity).frame(height: 72)
+            Text("\(action.emoji) \(action.title)").font(.system(size: 12, weight: .medium))
+            statusText
+            HStack(spacing: 6) {
+                if made, !isCurrent {
+                    Button("设为当前") { state.setActiveAction(action.rawValue) }.controlSize(.mini)
                 }
-                Spacer(minLength: 4)
-                if status != "generating", SpriteGen.exists(action.rawValue), state.config.activeAction != action.rawValue {
-                    Button("设为当前") { state.setActiveAction(action.rawValue) }.controlSize(.small)
-                }
-                Button(status == "generating" ? "生成中…" : (SpriteGen.exists(action.rawValue) ? "重生成" : "生成")) {
+                Button(status == "generating" ? "生成中" : (made ? "重生成" : "生成")) {
                     Task { await state.generateAction(action) }
-                }
-                .controlSize(.small).buttonStyle(.borderedProminent)
-                .disabled(status == "generating")
-            }.padding(12)
+                }.controlSize(.mini).buttonStyle(.borderedProminent).disabled(status == "generating")
+            }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isCurrent ? Color.accentColor : .clear, lineWidth: 1.5))
     }
     @ViewBuilder private var statusText: some View {
-        if status == "generating" { Text("生成中…（约 30–90s）").font(.caption).foregroundStyle(.secondary) }
-        else if status.hasPrefix("failed:") { Text(String(status.dropFirst(7))).font(.caption).foregroundStyle(.red).lineLimit(2) }
-        else if status == "success" || SpriteGen.exists(action.rawValue) {
-            Text(state.config.activeAction == action.rawValue ? "已生成 · 当前播放" : "已生成").font(.caption).foregroundStyle(.green)
-        } else { Text("未生成").font(.caption).foregroundStyle(.secondary) }
+        if status == "generating" { Text("生成中…").font(.caption2).foregroundStyle(.secondary) }
+        else if status.hasPrefix("failed:") { Text(String(status.dropFirst(7))).font(.caption2).foregroundStyle(.red).lineLimit(2) }
+        else if made { Text(isCurrent ? "当前播放" : "已生成").font(.caption2).foregroundStyle(.green) }
+        else { Text("未生成").font(.caption2).foregroundStyle(.secondary) }
     }
 }
 
-// AI 动作预览：循环播放该动作已生成的帧
+// AI 动作预览：循环播放该形象该动作的帧
 private struct ActionPreview: View {
+    let character: String
     let action: PetAnimAction
     @State private var frames: [NSImage] = []
     var body: some View {
@@ -59,7 +62,7 @@ private struct ActionPreview: View {
                 }
             }
         }
-        .onAppear { frames = SpriteGen.loadFrames(action.rawValue) }
+        .onAppear { frames = SpriteGen.loadFrames(character: character, action: action.rawValue) }
     }
 }
 
@@ -118,10 +121,11 @@ private struct CharacterCard: View {
 private struct CharacterPicker: View {
     @ObservedObject var state: AppState
     private var chars: [(String, String)] {
-        var a = [("cat", "默认小猫"), ("lazy_fish", "摸鱼鱼"), ("anxious_fish", "看表鱼"), ("shocked_fish", "震惊鱼")]
+        var a: [(String, String)] = []
         if FileManager.default.fileExists(atPath: PetImages.dir.appendingPathComponent("custom.png").path) {
-            a.append(("custom", "我的形象"))
+            a.append(("custom", "我的形象"))          // 自定义形象置顶
         }
+        a += [("cat", "默认小猫"), ("lazy_fish", "摸鱼鱼"), ("anxious_fish", "看表鱼"), ("shocked_fish", "震惊鱼")]
         return a
     }
     var body: some View {
@@ -282,12 +286,8 @@ struct SettingsView: View {
     private let items: [NavItem] = [
         .init(key: "general", title: "通用",   subtitle: "系统与基础行为",   icon: "gearshape.fill",           color: .gray),
         .init(key: "model",   title: "模型",   subtitle: "接入与中转站",     icon: "cpu",                      color: .blue),
-        .init(key: "pet",     title: "宠物",   subtitle: "形象与动作",       icon: "pawprint.fill",            color: .pink),
-        .init(key: "card",    title: "性格",   subtitle: "问答定制它的性格",   icon: "sparkles",                 color: .purple),
-        .init(key: "memory",  title: "记忆",   subtitle: "它记得什么·你说了算", icon: "brain.head.profile",       color: .indigo),
+        .init(key: "pet",     title: "宠物",   subtitle: "形象·动作·性格·记忆·语音·交互", icon: "pawprint.fill",  color: .pink),
         .init(key: "task",    title: "任务",   subtitle: "提醒与督促",       icon: "checklist",                color: .orange),
-        .init(key: "voice",   title: "语音",   subtitle: "让它开口",         icon: "waveform",                 color: .green),
-        .init(key: "interact",title: "交互",   subtitle: "点击·拖拽·文件",   icon: "hand.tap.fill",            color: .teal),
         .init(key: "privacy", title: "隐私",   subtitle: "它懂你·但不偷看你",  icon: "lock.shield.fill",         color: .mint),
         .init(key: "pro",     title: "Pro",   subtitle: "激活 · 解锁全部",    icon: "crown.fill",               color: .orange),
         .init(key: "about",   title: "关于",   subtitle: "版本与更新",       icon: "info.circle.fill",         color: .gray),
@@ -331,11 +331,7 @@ struct SettingsView: View {
         case "general":  general
         case "model":    ModelPane(state: state)
         case "pet":      pet
-        case "card":     PersonaPane(state: state)
-        case "memory":   MemoryPane(state: state)
         case "task":     TaskPane(state: state)
-        case "voice":    voice
-        case "interact": interact
         case "privacy":  privacy
         case "pro":      ProPane(state: state)
         default:         about
@@ -466,13 +462,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("宠物")
             GroupCard {
-                GRow(title: "眼睛跟随鼠标", subtitle: "光标移动时，阿豆的眼睛会看向你") {
-                    Toggle("", isOn: eyesBinding).labelsHidden().toggleStyle(.switch)
-                }
-                RowDivider()
                 VStack(alignment: .leading, spacing: 8) {
                     Text("形象").font(.system(size: 13, weight: .medium))
-                    Text("选个角色（悬停有光效）；AI 动作以当前形象为参考")
+                    Text("选个角色（悬停有光效）；AI 动作按当前形象分别生成与切换")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     CharacterPicker(state: state)
                 }
@@ -485,11 +477,11 @@ struct SettingsView: View {
             SectionHeader("AI 动作动画")
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("用当前形象作参考，AI 生成像素动作帧（直连你在「模型」页配置的服务，无需本地服务）。每个动作约消耗一次生图。")
+                    Text("用当前形象作参考，AI 生成像素动作帧（直连你在「模型」页配置的服务）。动画按形象分别保存、换形象自动切换。每个动作约消耗一次生图。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
-                        Text("当前播放").font(.system(size: 12))
+                        Text("默认播放").font(.system(size: 12))
                         Picker("", selection: Binding(get: { state.config.activeAction }, set: { state.setActiveAction($0) })) {
                             ForEach(PetAnimAction.allCases) { a in Text("\(a.emoji) \(a.title)").tag(a.rawValue) }
                         }.labelsHidden().frame(width: 130)
@@ -497,13 +489,20 @@ struct SettingsView: View {
                     }
                 }.padding(14)
             }
-            ForEach(PetAnimAction.allCases) { a in ActionRow(state: state, action: a) }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], alignment: .leading, spacing: 10) {
+                ForEach(PetAnimAction.allCases) { a in ActionRow(state: state, action: a) }
+            }
 
             SectionHeader("展示模式")
             HStack(spacing: 12) {
                 modeCard("桌面悬浮", "贴在桌面右下角，可拖动", selected: true)
                 modeCard("刘海屏", "藏进刘海，hover 唤出（即将支持）", selected: false)
             }
+
+            PersonaPane(state: state)
+            MemoryPane(state: state)
+            voice
+            interact
         }
     }
 

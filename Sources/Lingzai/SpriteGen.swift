@@ -49,17 +49,32 @@ enum SpriteGenError: LocalizedError {
 
 enum SpriteGen {
     static var root: URL { PetImages.dir.appendingPathComponent("generated", isDirectory: true) }
-    static func dir(for action: String) -> URL { root.appendingPathComponent(action, isDirectory: true) }
+    /// 动画按形象绑定：generated/<形象>/<动作>/
+    static func dir(character: String, action: String) -> URL {
+        root.appendingPathComponent(character, isDirectory: true).appendingPathComponent(action, isDirectory: true)
+    }
 
-    /// 生成某动作：直连生图 → 2×2 切 4 帧 → 去白底 + 底部居中对齐 → 存 generated/<action>/
-    static func generate(action: PetAnimAction, referencePNG: Data, baseUrl: String, apiKey: String) async throws -> Int {
+    /// 生成某动作（绑定到当前形象）：直连生图 → 2×2 切 4 帧 → 去白底 + 底部居中对齐
+    static func generate(action: PetAnimAction, character: String, referencePNG: Data, baseUrl: String, apiKey: String) async throws -> Int {
         let data = try await ImageGen.edit(baseUrl: baseUrl, apiKey: apiKey, prompt: action.prompt, referencePNG: referencePNG)
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let sheet = CGImageSourceCreateImageAtIndex(src, 0, nil) else { throw SpriteGenError.decode }
-        return try sliceRegisterSave(sheet, action: action.rawValue)
+        return try sliceRegisterSave(sheet, character: character, action: action.rawValue)
     }
 
-    private static func sliceRegisterSave(_ sheet: CGImage, action: String) throws -> Int {
+    /// 一次性迁移：把旧的扁平 generated/<action>/ 归到 generated/<character>/<action>/
+    static func migrateFlat(to character: String) {
+        let fm = FileManager.default
+        for a in PetAnimAction.allCases {
+            let flat = root.appendingPathComponent(a.rawValue, isDirectory: true)
+            guard fm.fileExists(atPath: flat.appendingPathComponent("frame-0.png").path) else { continue }
+            let dest = dir(character: character, action: a.rawValue)
+            try? fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if !fm.fileExists(atPath: dest.path) { try? fm.moveItem(at: flat, to: dest) }
+        }
+    }
+
+    private static func sliceRegisterSave(_ sheet: CGImage, character: String, action: String) throws -> Int {
         let cw = sheet.width / 2, ch = sheet.height / 2
         let rects = [CGRect(x: 0, y: 0, width: cw, height: ch), CGRect(x: cw, y: 0, width: cw, height: ch),
                      CGRect(x: 0, y: ch, width: cw, height: ch), CGRect(x: cw, y: ch, width: cw, height: ch)]
@@ -68,7 +83,7 @@ enum SpriteGen {
 
         let registered = register(cells.map { removeWhite($0) ?? $0 })
 
-        let d = dir(for: action)
+        let d = dir(character: character, action: action)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         for i in 0..<8 { try? FileManager.default.removeItem(at: d.appendingPathComponent("frame-\(i).png")) }
         var n = 0
@@ -164,15 +179,15 @@ enum SpriteGen {
                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
     }
 
-    static func exists(_ action: String) -> Bool {
-        FileManager.default.fileExists(atPath: dir(for: action).appendingPathComponent("frame-0.png").path)
+    static func exists(character: String, action: String) -> Bool {
+        FileManager.default.fileExists(atPath: dir(character: character, action: action).appendingPathComponent("frame-0.png").path)
     }
 
-    /// 读某动作已生成的帧
-    static func loadFrames(_ action: String) -> [NSImage] {
+    /// 读某形象某动作已生成的帧
+    static func loadFrames(character: String, action: String) -> [NSImage] {
         var imgs: [NSImage] = []
         for i in 0..<8 {
-            let u = dir(for: action).appendingPathComponent("frame-\(i).png")
+            let u = dir(character: character, action: action).appendingPathComponent("frame-\(i).png")
             guard FileManager.default.fileExists(atPath: u.path), let img = NSImage(contentsOf: u) else { break }
             imgs.append(img)
         }

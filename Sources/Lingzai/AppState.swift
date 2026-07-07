@@ -135,7 +135,7 @@ final class AppState: ObservableObject {
         }
         actionStatus[action.rawValue] = "generating"
         do {
-            _ = try await SpriteGen.generate(action: action, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
+            _ = try await SpriteGen.generate(action: action, character: config.character, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
             actionStatus[action.rawValue] = "success"
             onGeneratedFramesChanged?()
         } catch {

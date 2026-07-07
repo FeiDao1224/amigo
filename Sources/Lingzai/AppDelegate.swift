@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         runtime.activeProvider = { [weak state] in state?.activeProvider() }
         runtime.activeCard = { [weak state] in state?.currentCard() ?? .default }
         runtime.memoryContext = { [weak state] in state?.memoryContext() ?? "" }
+        SpriteGen.migrateFlat(to: state.config.character)   // 旧扁平动画 → 归到当前形象名下
         runtime.setCharacter(state.config.character)
         state.onGeneratedFramesChanged = { [weak self] in self?.runtime.invalidateActions() }
         state.onCharacterChanged = { [weak self] id in
@@ -166,20 +167,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let frame = panel.frame
         let mouse = NSEvent.mouseLocation
 
-        // 点击穿透：只有鼠标落在猫身上（或正在拖动）才接收点击，其余透传到桌面
+        // 点击穿透：只有鼠标落在宠物身上（或正在拖动/对话）才接收点击，其余透传到桌面
         let catRect = CGRect(x: frame.midX - 60, y: frame.minY + 6, width: 120, height: 160)
         panel.ignoresMouseEvents = (runtime.chatting || dragOffset != nil) ? false : !catRect.contains(mouse)
-
-        // 眼睛跟随
-        if state.config.eyesFollow {
-            let center = CGPoint(x: frame.midX, y: frame.minY + 120)   // 猫头大致位置
-            let scale: CGFloat = 240
-            let ex = max(-1, min(1, (mouse.x - center.x) / scale))
-            let ey = max(-1, min(1, (mouse.y - center.y) / scale))
-            runtime.eyeVector = CGSize(width: ex, height: -ey)     // SwiftUI y 向下
-        } else if runtime.eyeVector != .zero {
-            runtime.eyeVector = .zero
-        }
 
         updateBehaviorAction()
     }
