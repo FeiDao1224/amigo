@@ -1,16 +1,15 @@
 import SwiftUI
 import AppKit
 
-enum PetState { case idle, talk, happy, shocked, bored, sleep, dragged, hop, wiggle, stretch, lean }
+enum PetState { case idle, talk, happy, shocked, bored, sleep, dragged }
 
 /// 高频动画状态：只被宠物窗观察，不连累设置窗
 @MainActor
 final class PetRuntime: ObservableObject {
-    @Published var eyeVector: CGSize = .zero
     @Published var bubbleText: String = ""
     @Published var petState: PetState = .idle
     @Published var chatting = false                     // 下方输入框展开中
-    @Published var characterImageName: String = "cat"   // cat=代码猫，或 lazy_fish / anxious_fish / shocked_fish
+    @Published var characterImageName: String = "anxious_fish"
     @Published var actionFrames: [NSImage] = []         // 当前动作的 AI 帧：非空则优先循环播放
     @Published var actionFPS: Double = 3
     @Published var moveMotion: Int = 0                  // 0=无 1=走 2=跑（没生成对应动作时的程序位移兜底）
@@ -19,7 +18,6 @@ final class PetRuntime: ObservableObject {
     @Published var oneShotUntil: Date?                  // 一次性播放某动作(点击触发)到某时刻
     var oneShotKey = ""
     func oneShot(_ key: String, seconds: Double = 2.5) { oneShotKey = key; oneShotUntil = Date().addingTimeInterval(seconds) }
-    let animator = PetAnimator()
 
     private var currentActionKey = ""
     private var framesCache: [String: [NSImage]] = [:]
@@ -46,29 +44,16 @@ final class PetRuntime: ObservableObject {
     private var stateWork: DispatchWorkItem?
     func setState(_ s: PetState, revertAfter: TimeInterval? = nil) {
         petState = s
-        animator.playState(s)
         stateWork?.cancel()
         guard let r = revertAfter else { return }
-        let w = DispatchWorkItem { [weak self] in
-            self?.petState = .idle
-            self?.animator.play(.idleStand, force: true)
-        }
+        let w = DispatchWorkItem { [weak self] in self?.petState = .idle }
         stateWork = w
         DispatchQueue.main.asyncAfter(deadline: .now() + r, execute: w)
     }
 
     func setCharacter(_ id: String) {
         characterImageName = id
-        animator.loadPet(id)
         invalidateActions()          // 换形象 → 重新加载该形象的动作帧
-    }
-
-    func playAction(_ action: PetAction, force: Bool = true) {
-        animator.play(action, force: force)
-    }
-
-    func playRandomCompanionAction() {
-        animator.playRandomCompanionAction()
     }
 
     var activeProvider: (() -> Provider?)?
@@ -152,6 +137,4 @@ final class PetRuntime: ObservableObject {
     }
 
     func morningGreeting() { showBubble("早上好困……要来杯咖啡吗？") }
-    func feedCoffee() { showBubble("咖啡！瞬间支棱起来了"); setState(.happy, revertAfter: 1.6); playAction(.drinkCoffee) }
-    func feedWater() { showBubble("咕嘟咕嘟……谢啦老大"); setState(.happy, revertAfter: 1.6) }
 }

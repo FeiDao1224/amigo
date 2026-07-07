@@ -141,15 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let view = PetView(
             rt: runtime,
-            onSpeak: { [weak self] in self?.runtime.speak() },
-            onOpenSettings: { [weak self] in self?.openSettings() },
-            onTogglePet: { [weak self] in self?.togglePet() },
-            onQuit: { NSApp.terminate(nil) },
             onDrag: { [weak self] ended in self?.dragTick(ended: ended) },
-            onCoffee: { [weak self] in self?.runtime.feedCoffee() },
-            onWater: { [weak self] in self?.runtime.feedWater() },
             onFile: { [weak self] url in self?.runtime.handleFile(url) },
-            onChat: { [weak self] in self?.startInlineChat() },
             onSend: { [weak self] text in
                 guard let self else { return }
                 self.runtime.chatting = false            // 收起输入框
@@ -208,13 +201,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             runtime.showAction(fast ? state.config.mapFast : state.config.mapSlow, fallbackMotion: fast ? 2 : 1)
         } else {
             runtime.facingLeft = false
-            if SystemInfo.frontApp() != nil {
-                runtime.showAction("work")                     // 有前台 app 在用 → 工作
-            } else {
-                runtime.showAction(state.config.activeAction)  // 桌面空 → 默认(待着)
-            }
+            let now = Date().timeIntervalSinceReferenceDate
+            if now - lastFrontCheck > 0.5 { frontActive = SystemInfo.frontApp() != nil; lastFrontCheck = now }
+            runtime.showAction(frontActive ? "work" : state.config.activeAction)   // 用电脑→工作 / 桌面空→默认
         }
     }
+    private var frontActive = false
+    private var lastFrontCheck: TimeInterval = 0
 
     // MARK: 拖动（绝对坐标，无反馈抖动）
     private func dragTick(ended: Bool) {

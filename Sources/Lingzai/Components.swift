@@ -41,16 +41,6 @@ struct PetMotion: ViewModifier {
             sy = 1 + sin(t * 1.0) * 0.03
         case .dragged:
             rot = 7
-        case .hop:
-            dy = -abs(sin(t * 7)) * 14
-            sy = 1 + abs(sin(t * 7)) * 0.06
-        case .wiggle:
-            rot = sin(t * 18) * 6
-        case .stretch:
-            sy = 1 + abs(sin(t * 4)) * 0.12
-            sx = 1 - abs(sin(t * 4)) * 0.05
-        case .lean:
-            rot = sin(t * 4) * 9
         }
         return content
             .rotationEffect(.degrees(rot), anchor: .bottom)

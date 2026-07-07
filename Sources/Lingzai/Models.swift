@@ -11,10 +11,8 @@ struct Provider: Codable, Identifiable, Hashable {
 struct Config: Codable {
     var providers: [Provider] = []
     var activeId: String = ""
-    var eyesFollow: Bool = true
     var dockVisible: Bool = false
     var proactive: Bool = true          // 行为驱动的主动督促
-    var customCard: CardData? = nil     // 问答生成的宠物性格（nil = 用默认阿豆）
     var readAloud: Bool = false         // 朗读回复（系统 TTS）
     var proactiveLLM: Bool = false      // 督促文案由 AI 生成
     var petX: Double? = nil             // 记住宠物位置
@@ -30,7 +28,6 @@ struct Config: Codable {
     var behaviorDriven: Bool = true     // 行为驱动：按交互自动切动作
     var mapSlow: String = "walk"        // 慢速拖动 → 走
     var mapFast: String = "run"         // 快速拖动 → 跑
-    var mapIdle: String = "idle"        // 空闲 → 待着（已由 activeAction 取代，保留兼容）
     var mapChat: String = "phone"       // 对话中 → 打电话
     var customActions: [CustomAction] = []      // 用户自建动作
     var personas: [String: CardData] = [:]      // 每个形象一套性格/人设
@@ -121,39 +118,19 @@ let PRESETS: [Preset] = [
     .init(key: "relay",       name: "中转站",        baseUrl: "",                                                  model: ""),
 ]
 
-/// 宠物性格（可由问答生成、可持久化）
+/// 宠物性格：名字 + 自由文本人设（按形象持久化）
 struct CardData: Codable, Equatable {
     var name: String
-    var species: String
-    var tone: String
-    var catchphrases: [String]
     var persona: String
 
     var systemPrompt: String {
-        var s = ""
-        if !name.isEmpty { s += "你是\(name)" + (species.isEmpty ? "。" : "，一只\(species)。") }
-        if !tone.isEmpty { s += tone + "。" }
-        if !catchphrases.isEmpty { s += "口头禅：" + catchphrases.joined(separator: " / ") + "。" }
-        if !s.isEmpty { s += "\n" }
+        var s = name.isEmpty ? "" : "你叫\(name)。\n"
         s += persona
         s += "\n约束：你是 AI 桌宠不是真人；回复短、口语、像随口冒个泡，30 字内。"
         return s
     }
 
     static let `default` = CardData(
-        name: "阿豆", species: "猫", tone: "慵懒、慢半拍、嘴硬心软",
-        catchphrases: ["急啥，先眯一会儿。", "……喵。", "老大，摸摸头。"],
-        persona: "你是阿豆，一只住在电脑桌面上的橘猫。慵懒、爱摸鱼、嘴硬心软。你把主人叫“老大”，嘴上嫌弃、行动上关心。你绝不假装是人类、不扮演恋人或亲属，你就是一只猫。")
-
-    /// 从大模型返回的 JSON 宽松构造
-    static func fromLLM(_ d: [String: Any]) -> CardData? {
-        guard let name = d["name"] as? String, let persona = d["persona"] as? String else { return nil }
-        let phrases = (d["catchphrases"] as? [Any])?.compactMap { $0 as? String } ?? []
-        return CardData(
-            name: name,
-            species: d["species"] as? String ?? "猫",
-            tone: d["tone"] as? String ?? "",
-            catchphrases: phrases.isEmpty ? ["……"] : phrases,
-            persona: persona)
-    }
+        name: "阿豆",
+        persona: "你是阿豆，一只住在电脑桌面上的橘猫。慵懒、爱摸鱼、嘴硬心软，把主人叫“老大”，嘴上嫌弃、行动上关心。你绝不假装是人类、不扮演恋人或亲属，你就是一只猫。")
 }

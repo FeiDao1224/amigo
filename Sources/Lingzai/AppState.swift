@@ -91,7 +91,6 @@ final class AppState: ObservableObject {
     }
     func setActive(_ id: String) { config.activeId = id; persist() }
 
-    func setEyesFollow(_ v: Bool) { config.eyesFollow = v; persist() }
     func setProactive(_ v: Bool) { config.proactive = v; persist() }
     func setReadAloud(_ v: Bool) { config.readAloud = v; persist() }
     func setProactiveLLM(_ v: Bool) { config.proactiveLLM = v; persist() }
@@ -177,7 +176,7 @@ final class AppState: ObservableObject {
         for name in ["memories.json", "todos.json"] { try? fm.removeItem(at: dataDir.appendingPathComponent(name)) }
         try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
         memories = []; tasks = []
-        config.customCard = nil; config.personas = [:]; config.customActions = []
+        config.personas = [:]; config.customActions = []
         config.character = "anxious_fish"; persist()
         PetImages.clearCache(); onCharacterChanged?("anxious_fish")
     }
@@ -252,7 +251,7 @@ final class AppState: ObservableObject {
     func setMap(_ trigger: String, _ action: String) {
         switch trigger {
         case "slow": config.mapSlow = action; case "fast": config.mapFast = action
-        case "idle": config.mapIdle = action; case "chat": config.mapChat = action; default: break
+        case "chat": config.mapChat = action; default: break
         }
         persist(); onGeneratedFramesChanged?()
     }
@@ -340,19 +339,10 @@ final class AppState: ObservableObject {
     }
 
     // MARK: 性格（每个形象一套人设）
-    func currentCard() -> CardData { config.personas[config.character] ?? config.customCard ?? .default }
+    func currentCard() -> CardData { config.personas[config.character] ?? .default }
     func setCard(_ c: CardData) { config.personas[config.character] = c; persist() }
     func resetCard() { config.personas[config.character] = nil; persist() }
 
-    /// 问答 → 大模型生成性格
-    func generatePersonality(answers: String) async -> Result<CardData, Error> {
-        guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
-            return .failure(NSError(domain: "lingzai", code: 0,
-                                    userInfo: [NSLocalizedDescriptionKey: "先在「模型」页配置并启用一个模型"]))
-        }
-        do { return .success(try await PersonaDesigner.design(provider: p, answers: answers)) }
-        catch { return .failure(error) }
-    }
     func setDockVisible(_ v: Bool) {
         config.dockVisible = v; persist()
         NSApp.setActivationPolicy(v ? .regular : .accessory)

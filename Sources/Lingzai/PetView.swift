@@ -3,15 +3,8 @@ import UniformTypeIdentifiers
 
 struct PetView: View {
     @ObservedObject var rt: PetRuntime
-    var onSpeak: () -> Void
-    var onOpenSettings: () -> Void
-    var onTogglePet: () -> Void
-    var onQuit: () -> Void
     var onDrag: (Bool) -> Void          // ended?
-    var onCoffee: () -> Void
-    var onWater: () -> Void
     var onFile: (URL) -> Void
-    var onChat: () -> Void
     var onSend: (String) -> Void
     var onTrigger: (String) -> Void = { _ in }
 
@@ -65,22 +58,24 @@ struct PetView: View {
         onSend(t)
     }
 
-    // 宠物本体：有角色图用图、没有用代码猫；整图程序动画（TimelineView 时间驱动）
+    // 宠物本体：优先 AI 动作帧；否则静态形象图 + 整图程序动画；再兜底一个占位
     private var cat: some View {
         TimelineView(.animation) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
             if !rt.actionFrames.isEmpty {
-                // AI 生成的当前动作帧优先：对齐过、按动作 fps 循环
                 let i = Int(t * rt.actionFPS) % rt.actionFrames.count
                 Image(nsImage: rt.actionFrames[i]).resizable().interpolation(.none).scaledToFit()
                     .frame(width: 92, height: 140)
                     .scaleEffect(x: rt.facingLeft ? -1 : 1, y: 1)   // 往左走时翻转朝向
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
                     .modifier(MoveMotion(kind: rt.moveMotion, time: t))
-            } else if rt.animator.currentFrame != nil {
-                petVisual
+            } else if let img = PetImages.image(rt.characterImageName) {
+                Image(nsImage: img).resizable().interpolation(.none).scaledToFit()
+                    .frame(width: 92, height: 140)
+                    .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
+                    .modifier(PetMotion(state: rt.petState, time: t))
             } else {
-                petVisual.modifier(PetMotion(state: rt.petState, time: t))
+                placeholderPet.modifier(PetMotion(state: rt.petState, time: t))
             }
         }
         .contentShape(Circle())
@@ -97,53 +92,13 @@ struct PetView: View {
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
     }
 
-    @ViewBuilder private var petVisual: some View {
-        if rt.animator.currentFrame != nil {
-            AnimatedPetImage(animator: rt.animator)
-        } else if let img = PetImages.image(rt.characterImageName) {
-            Image(nsImage: img).resizable().interpolation(.none).scaledToFit()
-                .frame(width: 80, height: 125)
-                .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
-        } else {
-            drawnCat
-    }
-}
-
-private struct AnimatedPetImage: View {
-    @ObservedObject var animator: PetAnimator
-
-    var body: some View {
-        if let frame = animator.currentFrame {
-            Image(nsImage: frame)
-                .resizable()
-                .interpolation(.none)
-                .antialiased(false)
-                .scaledToFit()
-                .frame(width: displayWidth, height: displayHeight)
+    // 没有形象图时的极简兜底
+    private var placeholderPet: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "pawprint.circle.fill").font(.system(size: 46)).foregroundStyle(Color.orange.gradient)
+            Text("选个形象").font(.caption2).foregroundStyle(.secondary)
         }
-    }
-
-    private var displayWidth: CGFloat {
-        guard let profile = animator.profile else { return 160 }
-        return CGFloat(profile.pixelCanvasWidth)
-    }
-
-    private var displayHeight: CGFloat {
-        guard let profile = animator.profile else { return 192 }
-        return CGFloat(profile.pixelCanvasHeight)
-    }
-}
-
-    private var drawnCat: some View {
-        ZStack {
-            Ellipse().fill(.black.opacity(0.16)).frame(width: 98, height: 16).offset(y: 76).blur(radius: 3)
-            Capsule().fill(furGrad).frame(width: 18, height: 56).rotationEffect(.degrees(28)).offset(x: 46, y: 40)
-            Ellipse().fill(furGrad).frame(width: 96, height: 106).offset(y: 30).shadow(color: .black.opacity(0.12), radius: 5, y: 3)
-            Ellipse().fill(.white.opacity(0.55)).frame(width: 40, height: 60).offset(y: 40)
-            Capsule().fill(pawColor).frame(width: 24, height: 18).offset(x: -17, y: 70)
-            Capsule().fill(pawColor).frame(width: 24, height: 18).offset(x: 17, y: 70)
-            head.offset(y: -36)
-        }
+        .frame(width: 92, height: 140)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -156,45 +111,4 @@ private struct AnimatedPetImage: View {
         }
         return true
     }
-
-    private var head: some View {
-        ZStack {
-            // 耳朵
-            Triangle().fill(furGrad).frame(width: 30, height: 28).offset(x: -20, y: -26)
-            Triangle().fill(furGrad).frame(width: 30, height: 28).offset(x: 20, y: -26)
-            Triangle().fill(pinkEar).frame(width: 15, height: 14).offset(x: -20, y: -22)
-            Triangle().fill(pinkEar).frame(width: 15, height: 14).offset(x: 20, y: -22)
-
-            // 脸
-            Circle().fill(furGrad).frame(width: 66, height: 62)
-                .shadow(color: .black.opacity(0.1), radius: 3, y: 2)
-
-            eye.offset(x: -14, y: -2)
-            eye.offset(x: 14, y: -2)
-
-            // 鼻子
-            Triangle().fill(Color(red: 0.92, green: 0.5, blue: 0.55))
-                .rotationEffect(.degrees(180)).frame(width: 8, height: 6).offset(y: 9)
-        }
-    }
-
-    private var eye: some View {
-        ZStack {
-            Ellipse().fill(.white).frame(width: 13, height: 16)
-            Circle().fill(Color(red: 0.12, green: 0.10, blue: 0.12))
-                .frame(width: 8, height: 8)
-                .offset(x: rt.eyeVector.width * 3, y: rt.eyeVector.height * 3)
-            Circle().fill(.white.opacity(0.9)).frame(width: 2.6, height: 2.6)
-                .offset(x: rt.eyeVector.width * 3 - 1, y: rt.eyeVector.height * 3 - 2)
-        }
-        .animation(.easeOut(duration: 0.1), value: rt.eyeVector)
-    }
-
-    private var furGrad: LinearGradient {
-        LinearGradient(colors: [Color(red: 0.99, green: 0.75, blue: 0.44),
-                                Color(red: 0.93, green: 0.62, blue: 0.31)],
-                       startPoint: .top, endPoint: .bottom)
-    }
-    private var pawColor: Color { Color(red: 0.90, green: 0.60, blue: 0.30) }
-    private var pinkEar: Color { Color(red: 0.98, green: 0.78, blue: 0.78) }
 }
