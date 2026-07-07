@@ -21,7 +21,7 @@ private struct ActionRow: View {
         VStack(spacing: 6) {
             ActionPreview(character: character, id: def.id, fps: def.fps).id("\(character)-\(status)")
                 .frame(maxWidth: .infinity).frame(height: 72)
-            Text("\(def.emoji) \(def.title)").font(.system(size: 12, weight: .medium)).lineLimit(1)
+            Text(def.title).font(.system(size: 12, weight: .medium)).lineLimit(1)
             statusText
             HStack(spacing: 6) {
                 if !def.builtin {
@@ -41,7 +41,7 @@ private struct ActionRow: View {
     }
     @ViewBuilder private var statusText: some View {
         if status == "generating" { Text("生成中…").font(.caption2).foregroundStyle(.secondary) }
-        else if status.hasPrefix("failed:") { Text(String(status.dropFirst(7))).font(.caption2).foregroundStyle(.red).lineLimit(2) }
+        else if status == "failed" { Text("生成失败").font(.caption2).foregroundStyle(.red) }
         else if made { Text(isCurrent ? "当前播放" : "已生成").font(.caption2).foregroundStyle(.green) }
         else { Text("未生成").font(.caption2).foregroundStyle(.secondary) }
     }
@@ -253,7 +253,6 @@ private struct CustomPetCard: View {
     var body: some View {
         GroupCard {
             VStack(alignment: .leading, spacing: 10) {
-                Text("自定义形象").font(.system(size: 13, weight: .semibold))
                 Text(hasModel
                      ? "已配置模型 → 用 AI 生成更精致的像素形象；最多加 3 张参考图会更像。非生物会自动拟人化、加四肢，好做动作。"
                      : "未配置模型 → 本地像素化。去「模型」页配置后，这里会自动改用 AI 生成，效果更好。")
@@ -403,6 +402,18 @@ struct SettingsView: View {
         }
         }
         .frame(minWidth: 780, minHeight: 540)
+        .overlay(alignment: .top) {
+            if !state.toast.isEmpty {
+                Text(state.toast)
+                    .font(.system(size: 12)).foregroundStyle(.white).lineLimit(3)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(.red.opacity(0.92), in: RoundedRectangle(cornerRadius: 10))
+                    .shadow(radius: 6, y: 2).padding(.top, 14).frame(maxWidth: 460)
+                    .onTapGesture { state.toast = "" }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: state.toast)
     }
 
     @ViewBuilder private var content: some View {
@@ -427,7 +438,7 @@ struct SettingsView: View {
     private func mapRow(_ title: String, _ trigger: String, _ current: String) -> some View {
         GRow(title: title) {
             Picker("", selection: Binding(get: { current }, set: { state.setMap(trigger, $0) })) {
-                ForEach(state.allActions) { d in Text("\(d.emoji) \(d.title)").tag(d.id) }
+                ForEach(state.allActions) { d in Text(d.title).tag(d.id) }
             }.labelsHidden().frame(width: 130)
         }
     }

@@ -15,6 +15,7 @@ final class PetRuntime: ObservableObject {
     @Published var actionFPS: Double = 3
     @Published var moveMotion: Int = 0                  // 0=无 1=走 2=跑（没生成对应动作时的程序位移兜底）
     @Published var waitingReply = false                 // 发消息后等模型返回：显示"打电话"
+    @Published var facingLeft = false                   // 朝向：往左走时水平翻转
     let animator = PetAnimator()
 
     private var currentActionKey = ""
@@ -93,8 +94,7 @@ final class PetRuntime: ObservableObject {
 
     private var card: CardData { activeCard?() ?? .default }
     private var fullSystem: String {
-        let mem = memoryContext()
-        return mem.isEmpty ? card.systemPrompt : card.systemPrompt + "\n\n" + mem
+        [card.systemPrompt, memoryContext(), SystemInfo.context()].filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 
     func speak() {
@@ -148,7 +148,7 @@ final class PetRuntime: ObservableObject {
         }
     }
 
-    func morningGreeting() { showBubble("早上好困……要来杯咖啡吗？☕️") }
-    func feedCoffee() { showBubble("咖啡！瞬间支棱起来了 ☕✨"); setState(.happy, revertAfter: 1.6); playAction(.drinkCoffee) }
-    func feedWater() { showBubble("咕嘟咕嘟……谢啦老大 💧"); setState(.happy, revertAfter: 1.6) }
+    func morningGreeting() { showBubble("早上好困……要来杯咖啡吗？") }
+    func feedCoffee() { showBubble("咖啡！瞬间支棱起来了"); setState(.happy, revertAfter: 1.6); playAction(.drinkCoffee) }
+    func feedWater() { showBubble("咕嘟咕嘟……谢啦老大"); setState(.happy, revertAfter: 1.6) }
 }

@@ -8,6 +8,14 @@ final class AppState: ObservableObject {
     @Published var tasks: [TodoItem] = []
     @Published var focusing = false               // 陪做模式中
     @Published var licensed = false               // 已激活 Pro
+    @Published var toast = ""                      // 顶部通知(错误等)
+    private var toastSeq = 0
+    func showToast(_ s: String) {
+        toast = s; toastSeq += 1; let seq = toastSeq
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            if self?.toastSeq == seq { self?.toast = "" }
+        }
+    }
     var onStartFocus: ((String) -> Void)?
     var onTaskDone: ((String) -> Void)?
 
@@ -103,9 +111,10 @@ final class AppState: ObservableObject {
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             if let png = cleaned.pngData() { try? png.write(to: url) }
             PetImages.clearCache(); setCharacter("custom")
-            customBusy = false; customMsg = "已生成 ✓"
+            customBusy = false; customMsg = "已生成"
         } catch {
-            customBusy = false; customMsg = "失败：\(error.localizedDescription)"
+            customBusy = false; customMsg = ""
+            showToast("形象生成失败：\(error.localizedDescription)")
         }
     }
 
@@ -198,7 +207,8 @@ final class AppState: ObservableObject {
             actionStatus[def.id] = "success"
             onGeneratedFramesChanged?()
         } catch {
-            actionStatus[def.id] = "failed:\(error.localizedDescription)"
+            actionStatus[def.id] = "failed"
+            showToast("「\(def.title)」生成失败：\(error.localizedDescription)")
         }
     }
 

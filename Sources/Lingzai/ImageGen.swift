@@ -73,6 +73,15 @@ enum ImageGen {
         return req
     }
 
+    /// 把原始错误压成一句短话：HTML/超长直接概括
+    private static func sanitize(_ s: String) -> String {
+        let low = s.lowercased()
+        if low.contains("<!doctype") || low.contains("<html") { return "服务器返回网页错误（端点/网关/额度问题）" }
+        var t = s.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+        if t.count > 80 { t = String(t.prefix(80)) + "…" }
+        return t
+    }
+
     private static func send(_ req: URLRequest) async throws -> Data {
         let data: Data, resp: URLResponse
         do { (data, resp) = try await URLSession.shared.data(for: req) }
@@ -80,10 +89,10 @@ enum ImageGen {
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
             let code = (resp as? HTTPURLResponse)?.statusCode ?? -1
-            let msg = ((json?["error"] as? [String: Any])?["message"] as? String)
+            let raw = ((json?["error"] as? [String: Any])?["message"] as? String)
                 ?? (json?["error"] as? String)
-                ?? (String(data: data, encoding: .utf8)?.prefix(300)).map(String.init) ?? "未知错误"
-            throw ImageGenError.http(code, msg)
+                ?? (String(data: data, encoding: .utf8)?.prefix(400)).map(String.init) ?? "未知错误"
+            throw ImageGenError.http(code, sanitize(raw))
         }
         return try await extractImage(json)
     }

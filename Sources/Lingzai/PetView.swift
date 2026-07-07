@@ -73,6 +73,7 @@ struct PetView: View {
                 let i = Int(t * rt.actionFPS) % rt.actionFrames.count
                 Image(nsImage: rt.actionFrames[i]).resizable().interpolation(.none).scaledToFit()
                     .frame(width: 92, height: 140)
+                    .scaleEffect(x: rt.facingLeft ? -1 : 1, y: 1)   // 往左走时翻转朝向
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
                     .modifier(MoveMotion(kind: rt.moveMotion, time: t))
             } else if rt.animator.currentFrame != nil {
@@ -91,6 +92,13 @@ struct PetView: View {
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.4).onEnded { _ in onChat() }
         )
+        .contextMenu {
+            Button("摸摸头") { onSpeak() }
+            Button("打开设置…") { onOpenSettings() }
+            Button("隐藏宠物") { onTogglePet() }
+            Divider()
+            Button("退出灵崽") { onQuit() }
+        }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
     }
 
