@@ -166,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: 眼睛跟随全屏鼠标
     private func startCursorTracking() {
-        cursorTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+        cursorTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.cursorTick() }
         }
     }
@@ -178,7 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // 点击穿透：只有鼠标落在宠物身上（或正在拖动/对话）才接收点击，其余透传到桌面
         let catRect = CGRect(x: frame.midX - 60, y: frame.minY + 6, width: 120, height: 160)
-        panel.ignoresMouseEvents = (runtime.chatting || dragOffset != nil) ? false : !catRect.contains(mouse)
+        let wantIgnore = (runtime.chatting || dragOffset != nil) ? false : !catRect.contains(mouse)
+        if panel.ignoresMouseEvents != wantIgnore { panel.ignoresMouseEvents = wantIgnore }   // 只在变化时设，省窗口服务器开销
 
         updateBehaviorAction()
     }

@@ -60,7 +60,7 @@ struct PetView: View {
 
     // 宠物本体：优先 AI 动作帧；否则静态形象图 + 整图程序动画；再兜底一个占位
     private var cat: some View {
-        TimelineView(.animation) { tl in
+        TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
             if !rt.actionFrames.isEmpty {
                 let i = Int(t * rt.actionFPS) % rt.actionFrames.count
