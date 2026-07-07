@@ -114,7 +114,14 @@ struct CardData: Codable, Equatable {
     var persona: String
 
     var systemPrompt: String {
-        "你是\(name)，一只\(species)。\(tone)。口头禅：\(catchphrases.joined(separator: " / "))。\n\(persona)\n约束：你是 AI 桌宠不是真人；回复要短、口语、像随口冒个泡，控制在 30 字内。"
+        var s = ""
+        if !name.isEmpty { s += "你是\(name)" + (species.isEmpty ? "。" : "，一只\(species)。") }
+        if !tone.isEmpty { s += tone + "。" }
+        if !catchphrases.isEmpty { s += "口头禅：" + catchphrases.joined(separator: " / ") + "。" }
+        if !s.isEmpty { s += "\n" }
+        s += persona
+        s += "\n约束：你是 AI 桌宠不是真人；回复短、口语、像随口冒个泡，30 字内。"
+        return s
     }
 
     static let `default` = CardData(

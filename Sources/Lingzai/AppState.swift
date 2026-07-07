@@ -144,6 +144,21 @@ final class AppState: ObservableObject {
     }
 
     func setActiveAction(_ a: String) { config.activeAction = a; persist(); onGeneratedFramesChanged?() }
+
+    @Published var batchGenerating = false
+    @Published var batchProgress = ""
+    /// 一键生成全部动作（逐个，串行）
+    @MainActor
+    func generateAllActions() async {
+        guard !batchGenerating else { return }
+        batchGenerating = true
+        let all = PetAnimAction.allCases
+        for (i, a) in all.enumerated() {
+            batchProgress = "\(i + 1)/\(all.count) \(a.title)"
+            await generateAction(a)
+        }
+        batchGenerating = false; batchProgress = ""
+    }
     func setBehaviorDriven(_ v: Bool) { config.behaviorDriven = v; persist(); onGeneratedFramesChanged?() }
     func setMap(_ trigger: String, _ action: String) {
         switch trigger {

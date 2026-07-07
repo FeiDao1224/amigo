@@ -182,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let fast = dragSpeed > 320
             runtime.showAction(fast ? state.config.mapFast : state.config.mapSlow, fallbackMotion: fast ? 2 : 1)
         } else {
-            runtime.showAction(state.config.mapIdle)
+            runtime.showAction(state.config.activeAction)   // 空闲 = 选中的默认动作
         }
     }
 

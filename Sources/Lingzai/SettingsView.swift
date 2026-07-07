@@ -23,19 +23,16 @@ private struct ActionRow: View {
                 .frame(maxWidth: .infinity).frame(height: 72)
             Text("\(action.emoji) \(action.title)").font(.system(size: 12, weight: .medium))
             statusText
-            HStack(spacing: 6) {
-                if made, !isCurrent {
-                    Button("设为当前") { state.setActiveAction(action.rawValue) }.controlSize(.mini)
-                }
-                Button(status == "generating" ? "生成中" : (made ? "重生成" : "生成")) {
-                    Task { await state.generateAction(action) }
-                }.controlSize(.mini).buttonStyle(.borderedProminent).disabled(status == "generating")
-            }
+            Button(status == "generating" ? "生成中" : (made ? "重生成" : "生成")) {
+                Task { await state.generateAction(action) }
+            }.controlSize(.mini).buttonStyle(.borderedProminent).disabled(status == "generating")
         }
         .padding(10)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isCurrent ? Color.accentColor : .clear, lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isCurrent ? Color.accentColor : .clear, lineWidth: 2))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture { state.setActiveAction(action.rawValue) }
     }
     @ViewBuilder private var statusText: some View {
         if status == "generating" { Text("生成中…").font(.caption2).foregroundStyle(.secondary) }
@@ -474,17 +471,17 @@ struct SettingsView: View {
             SectionHeader("自定义形象")
             CustomPetCard(state: state, onUpgrade: { sel = "pro" })
 
-            SectionHeader("AI 动作动画")
+            SectionHeader("动作")
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("用当前形象作参考，AI 生成像素动作帧（直连你在「模型」页配置的服务）。动画按形象分别保存、换形象自动切换。每个动作约消耗一次生图。")
+                    Text("用当前形象作参考，AI 生成像素动作帧（直连你在「模型」页配置的服务）。动画按形象分别保存、换形象自动切换。点卡片＝设为默认播放。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 8) {
-                        Text("默认播放").font(.system(size: 12))
-                        Picker("", selection: Binding(get: { state.config.activeAction }, set: { state.setActiveAction($0) })) {
-                            ForEach(PetAnimAction.allCases) { a in Text("\(a.emoji) \(a.title)").tag(a.rawValue) }
-                        }.labelsHidden().frame(width: 130)
+                    HStack(spacing: 10) {
+                        Button(state.batchGenerating ? "生成中…" : "一键生成全部") {
+                            Task { await state.generateAllActions() }
+                        }.buttonStyle(.borderedProminent).controlSize(.small).disabled(state.batchGenerating)
+                        if state.batchGenerating { Text(state.batchProgress).font(.caption).foregroundStyle(.secondary) }
                         Spacer()
                     }
                 }.padding(14)
@@ -493,16 +490,10 @@ struct SettingsView: View {
                 ForEach(PetAnimAction.allCases) { a in ActionRow(state: state, action: a) }
             }
 
-            SectionHeader("展示模式")
-            HStack(spacing: 12) {
-                modeCard("桌面悬浮", "贴在桌面右下角，可拖动", selected: true)
-                modeCard("刘海屏", "藏进刘海，hover 唤出（即将支持）", selected: false)
-            }
-
             PersonaPane(state: state)
             MemoryPane(state: state)
-            voice
             interact
+            voice
         }
     }
 
@@ -538,29 +529,30 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("交互")
             GroupCard {
-                GRow(title: "左键点击", subtitle: "对话 —— 戳一下，让阿豆说话") { EmptyView() }
+                GRow(title: "行为驱动动作", subtitle: "根据你的操作自动切换动作（需先生成对应动作）") {
+                    Toggle("", isOn: behaviorBinding).labelsHidden().toggleStyle(.switch)
+                }
+                RowDivider(); mapRow("慢速拖动 → ", "slow", state.config.mapSlow)
+                RowDivider(); mapRow("快速拖动 → ", "fast", state.config.mapFast)
+                RowDivider(); mapRow("对话中 → ", "chat", state.config.mapChat)
                 RowDivider()
-                GRow(title: "右键点击", subtitle: "菜单 —— 摸头 / 设置 / 隐藏 / 退出") { EmptyView() }
+                GRow(title: "空闲", subtitle: "没操作时播放你在「动作」里选中的默认动作") {
+                    Text("＝默认动作").font(.caption).foregroundStyle(.secondary)
+                }
                 RowDivider()
-                GRow(title: "拖动", subtitle: "移动宠物位置") { EmptyView() }
+                GRow(title: "左键点击", subtitle: "戳一下 → 摸头 / 冒一句") { Text("固定").font(.caption).foregroundStyle(.secondary) }
                 RowDivider()
-                GRow(title: "拖文件给它", subtitle: "把文件拖到它身上，用你的模型帮你看看 / 给处理建议") {
+                GRow(title: "长按", subtitle: "长按 → 打开对话输入框") { Text("固定").font(.caption).foregroundStyle(.secondary) }
+                RowDivider()
+                GRow(title: "右键点击", subtitle: "菜单 → 摸头 / 设置 / 隐藏 / 退出") { Text("固定").font(.caption).foregroundStyle(.secondary) }
+                RowDivider()
+                GRow(title: "拖动", subtitle: "移动宠物位置") { Text("固定").font(.caption).foregroundStyle(.secondary) }
+                RowDivider()
+                GRow(title: "文件拖动", subtitle: "拖文件到它身上 → 用你的模型帮你看 / 给处理建议") {
                     Text("已开放").font(.caption).foregroundStyle(.green)
                 }
             }
-
-            SectionHeader("行为驱动动作")
-            GroupCard {
-                GRow(title: "按交互自动切动作",
-                     subtitle: "拖得慢→走、拖得快→跑、对话中→打电话、空闲→待着（需先在宠物页生成对应动作）") {
-                    Toggle("", isOn: behaviorBinding).labelsHidden().toggleStyle(.switch)
-                }
-                RowDivider(); mapRow("慢速拖动", "slow", state.config.mapSlow)
-                RowDivider(); mapRow("快速拖动", "fast", state.config.mapFast)
-                RowDivider(); mapRow("空闲待着", "idle", state.config.mapIdle)
-                RowDivider(); mapRow("对话中", "chat", state.config.mapChat)
-            }
-            Text("对应动作没生成时会自动回退到静态形象 / 程序动画，不影响使用。")
+            Text("动作没生成时会回退到静态形象 / 程序动画，不影响使用。「新建交互 / 双击映射」下一版加。")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -722,108 +714,53 @@ struct ModelPane: View {
 // MARK: - 性格（问答生成）
 struct PersonaPane: View {
     @ObservedObject var state: AppState
-    @State private var name = ""
-    @State private var species = "猫"
-    @State private var style = "慵懒高冷"
-    @State private var callYou = "老大"
-    @State private var active = "适度"
-    @State private var nightReact = "阴阳怪气催我"
-    @State private var generating = false
-    @State private var msg = ""
-    @State private var importText = ""
-    @State private var shareMsg = ""
+    @State private var text = ""
+    @State private var loaded = false
+    @State private var saved = false
 
-    private let speciesOpts = ["猫", "狗", "水豚", "鸭子", "仓鼠"]
-    private let styleOpts = ["慵懒高冷", "温柔体贴", "毒舌吐槽", "元气热情", "憨憨呆萌"]
-    private let activeOpts = ["话痨爱互动", "适度", "高冷少说"]
-    private let nightOpts = ["温柔关心我", "阴阳怪气催我", "陪我一起摆烂"]
+    static let template = """
+    你是阿豆，一只住在我电脑桌面上的橘猫。
+    性格：慵懒、爱摸鱼、嘴硬心软，把我叫"老大"，嘴上嫌弃、行动上关心。
+    说话：短、口语、像随口冒个泡；偶尔怼我两句都是为我好。
+    边界：你就是一只猫，绝不假装人类、不扮演恋人或亲属。
+    """
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("性格")
             GroupCard {
-                let c = state.currentCard()
-                GRow(title: "当前性格", subtitle: c.tone.isEmpty ? "默认设定" : c.tone) {
-                    HStack(spacing: 8) {
-                        Text("\(c.name) · \(c.species)").foregroundStyle(.secondary)
-                        if state.config.customCard != nil {
-                            Button("重置") { state.resetCard() }.controlSize(.small)
-                        }
-                    }
-                }
-            }
-
-            SectionHeader("回答几个问题，让 AI 定制它")
-            GroupCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    q("你想叫它什么？") { TextField("阿豆", text: $name).textFieldStyle(.roundedBorder).frame(width: 170) }
-                    q("它是什么小动物？") { picker($species, speciesOpts) }
-                    q("说话风格？") { picker($style, styleOpts) }
-                    q("它怎么称呼你？") { TextField("老大", text: $callYou).textFieldStyle(.roundedBorder).frame(width: 170) }
-                    q("有多主动？") { picker($active, activeOpts) }
-                    q("你熬夜 / 摸鱼时，它？") { picker($nightReact, nightOpts) }
-
-                    HStack(spacing: 10) {
-                        Button(generating ? "生成中…" : "让 AI 生成性格") { generate() }
-                            .buttonStyle(.borderedProminent).tint(.purple).disabled(generating)
-                        if !msg.isEmpty { Text(msg).font(.caption).foregroundStyle(.secondary) }
-                    }
-                }
-                .padding(14)
-            }
-
-            SectionHeader("分享 / 导入")
-            GroupCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    Button("复制当前性格分享码") { copyShare() }.buttonStyle(.bordered)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("直接写它的人设 —— 它会照这个说话。可改成任意角色 / 语气 / 称呼。")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                    TextEditor(text: $text)
+                        .font(.system(size: 13)).frame(minHeight: 132)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.1)))
+                        .onChange(of: text) { _ in saved = false }
                     HStack {
-                        TextField("粘贴性格分享码导入", text: $importText).textFieldStyle(.roundedBorder)
-                        Button("导入") { importPersona() }.buttonStyle(.bordered)
+                        Button("恢复默认模板") { text = Self.template }.controlSize(.small)
+                        Spacer()
+                        if saved { Text("已保存 ✓").font(.caption).foregroundStyle(.green) }
+                        Button("保存") { save() }.buttonStyle(.borderedProminent).controlSize(.small)
                     }
-                    if !shareMsg.isEmpty { Text(shareMsg).font(.caption).foregroundStyle(.secondary) }
-                }
-                .padding(14)
+                }.padding(14)
             }
-            Text("用你当前启用的模型生成（消耗一点点 token）。生成后立刻生效，不满意可重来或点「重置」。")
-                .font(.caption).foregroundStyle(.secondary)
         }
-    }
-
-    private func q<V: View>(_ label: String, @ViewBuilder _ control: () -> V) -> some View {
-        HStack { Text(label).font(.system(size: 13)); Spacer(minLength: 8); control() }
-    }
-    private func picker(_ sel: Binding<String>, _ opts: [String]) -> some View {
-        Picker("", selection: sel) { ForEach(opts, id: \.self) { Text($0) } }
-            .labelsHidden().frame(width: 170)
-    }
-
-    private func generate() {
-        generating = true; msg = ""
-        let answers = "名字倾向：\(name.isEmpty ? "随意" : name)；物种：\(species)；说话风格：\(style)；称呼主人：\(callYou.isEmpty ? "随它" : callYou)；主动程度：\(active)；熬夜或摸鱼时它：\(nightReact)"
-        Task { @MainActor in
-            let r = await state.generatePersonality(answers: answers)
-            generating = false
-            switch r {
-            case .success(let c): state.setCard(c); msg = "已生成：\(c.name) ✓"
-            case .failure(let e): msg = e.localizedDescription
+        .onAppear {
+            if !loaded {
+                let p = state.currentCard().persona
+                text = p.isEmpty ? Self.template : p
+                loaded = true
             }
         }
     }
 
-    private func copyShare() {
-        if let d = try? JSONEncoder().encode(state.currentCard()), let s = String(data: d, encoding: .utf8) {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(s, forType: .string)
-            shareMsg = "已复制分享码到剪贴板 ✓"
-        }
-    }
-    private func importPersona() {
-        guard let d = importText.data(using: .utf8) else { shareMsg = "格式不对"; return }
-        if let c = try? JSONDecoder().decode(CardData.self, from: d) {
-            state.setCard(c); shareMsg = "已导入：\(c.name) ✓"; importText = ""
-        } else if let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any], let c = CardData.fromLLM(obj) {
-            state.setCard(c); shareMsg = "已导入：\(c.name) ✓"; importText = ""
-        } else { shareMsg = "解析失败，检查分享码" }
+    private func save() {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        state.setCard(CardData(name: "", species: "", tone: "", catchphrases: [], persona: t.isEmpty ? Self.template : t))
+        saved = true
     }
 }
 
