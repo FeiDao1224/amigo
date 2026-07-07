@@ -23,6 +23,7 @@ struct Config: Codable {
     var character: String = "cat"       // 宠物形象：cat / lazy_fish / anxious_fish / shocked_fish
     var licenseEmail: String = ""       // 激活：买家邮箱
     var licenseCode: String = ""        // 激活：离线签名激活码
+    var activeAction: String = "idle"   // 当前播放的 AI 生成动作：work/phone/think/idle/run
 }
 
 /// 配置持久化：~/Library/Application Support/Lingzai/config.json

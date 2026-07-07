@@ -28,8 +28,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         runtime.activeCard = { [weak state] in state?.currentCard() ?? .default }
         runtime.memoryContext = { [weak state] in state?.memoryContext() ?? "" }
         runtime.setCharacter(state.config.character)
-        runtime.loadGeneratedIdleFrames()
-        state.onGeneratedFramesChanged = { [weak self] in self?.runtime.loadGeneratedIdleFrames() }
+        runtime.loadActionFrames(state.config.activeAction)
+        state.onGeneratedFramesChanged = { [weak self] in
+            guard let self else { return }
+            self.runtime.loadActionFrames(self.state.config.activeAction)
+        }
         state.onCharacterChanged = { [weak self] id in
             PetImages.clearCache()
             self?.runtime.setCharacter(id)

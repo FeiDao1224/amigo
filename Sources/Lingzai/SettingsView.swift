@@ -8,6 +8,61 @@ private struct NavItem: Identifiable {
     var id: String { key }
 }
 
+// AI 动作：一行（动画预览 + 生成/重生成 + 状态 + 设为当前）
+private struct ActionRow: View {
+    @ObservedObject var state: AppState
+    let action: PetAnimAction
+    private var status: String { state.actionStatus[action.rawValue] ?? "" }
+    var body: some View {
+        GroupCard {
+            HStack(spacing: 12) {
+                ActionPreview(action: action).id(status)
+                    .frame(width: 56, height: 74)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(action.emoji) \(action.title)").font(.system(size: 13, weight: .semibold))
+                    statusText
+                }
+                Spacer(minLength: 4)
+                if status != "generating", SpriteGen.exists(action.rawValue), state.config.activeAction != action.rawValue {
+                    Button("设为当前") { state.setActiveAction(action.rawValue) }.controlSize(.small)
+                }
+                Button(status == "generating" ? "生成中…" : (SpriteGen.exists(action.rawValue) ? "重生成" : "生成")) {
+                    Task { await state.generateAction(action) }
+                }
+                .controlSize(.small).buttonStyle(.borderedProminent)
+                .disabled(status == "generating")
+            }.padding(12)
+        }
+    }
+    @ViewBuilder private var statusText: some View {
+        if status == "generating" { Text("生成中…（约 30–90s）").font(.caption).foregroundStyle(.secondary) }
+        else if status.hasPrefix("failed:") { Text(String(status.dropFirst(7))).font(.caption).foregroundStyle(.red).lineLimit(2) }
+        else if status == "success" || SpriteGen.exists(action.rawValue) {
+            Text(state.config.activeAction == action.rawValue ? "已生成 · 当前播放" : "已生成").font(.caption).foregroundStyle(.green)
+        } else { Text("未生成").font(.caption).foregroundStyle(.secondary) }
+    }
+}
+
+// AI 动作预览：循环播放该动作已生成的帧
+private struct ActionPreview: View {
+    let action: PetAnimAction
+    @State private var frames: [NSImage] = []
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.05))
+            if frames.isEmpty {
+                Image(systemName: "sparkles").foregroundStyle(.secondary)
+            } else {
+                TimelineView(.animation) { tl in
+                    let i = Int(tl.date.timeIntervalSinceReferenceDate * action.fps) % frames.count
+                    Image(nsImage: frames[i]).resizable().interpolation(.none).scaledToFit().padding(4)
+                }
+            }
+        }
+        .onAppear { frames = SpriteGen.loadFrames(action.rawValue) }
+    }
+}
+
 // Pro 激活页：离线邮箱+激活码验签解锁
 private struct ProPane: View {
     @ObservedObject var state: AppState
@@ -348,22 +403,22 @@ struct SettingsView: View {
             SectionHeader("自定义形象")
             CustomPetCard(state: state, onUpgrade: { sel = "pro" })
 
-            SectionHeader("AI 生成动画（实验）")
+            SectionHeader("AI 动作动画")
             GroupCard {
-                GRow(title: "生成 Idle 动画",
-                     subtitle: "用当前形象作参考，调本地生成服务 localhost:3000 出 4 帧呼吸动画") {
-                    Button(state.spriteStatus == "generating" ? "生成中…" : "生成 Idle") {
-                        Task { await state.generateIdleSprite() }
-                    }.disabled(state.spriteStatus == "generating")
-                }
-                if state.spriteStatus == "success" {
-                    RowDivider()
-                    GRow(title: "✅ 已生成", subtitle: "桌宠 idle 已切换到 AI 帧动画（重启也会保留）") { EmptyView() }
-                } else if state.spriteStatus.hasPrefix("failed:") {
-                    RowDivider()
-                    GRow(title: "❌ 生成失败", subtitle: String(state.spriteStatus.dropFirst(7))) { EmptyView() }
-                }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("用当前形象作参考，AI 生成像素动作帧（直连你在「模型」页配置的服务，无需本地服务）。每个动作约消耗一次生图。")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        Text("当前播放").font(.system(size: 12))
+                        Picker("", selection: Binding(get: { state.config.activeAction }, set: { state.setActiveAction($0) })) {
+                            ForEach(PetAnimAction.allCases) { a in Text("\(a.emoji) \(a.title)").tag(a.rawValue) }
+                        }.labelsHidden().frame(width: 130)
+                        Spacer()
+                    }
+                }.padding(14)
             }
+            ForEach(PetAnimAction.allCases) { a in ActionRow(state: state, action: a) }
 
             SectionHeader("展示模式")
             HStack(spacing: 12) {

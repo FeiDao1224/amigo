@@ -11,18 +11,14 @@ final class PetRuntime: ObservableObject {
     @Published var petState: PetState = .idle
     @Published var chatting = false                     // 下方输入框展开中
     @Published var characterImageName: String = "cat"   // cat=代码猫，或 lazy_fish / anxious_fish / shocked_fish
-    @Published var idleFrames: [NSImage] = []           // AI 生成的 idle 帧：非空则 idle 时优先播这些
+    @Published var actionFrames: [NSImage] = []         // 当前动作的 AI 帧：非空则优先循环播放
+    @Published var actionFPS: Double = 3
     let animator = PetAnimator()
 
-    /// 从 generated/idle/ 加载 AI 生成的 idle 帧（没有则清空，回退到静态/程序动画）
-    func loadGeneratedIdleFrames() {
-        var imgs: [NSImage] = []
-        for i in 0..<8 {
-            let u = SpriteSheetClient.generatedIdleDir.appendingPathComponent("frame-\(i).png")
-            guard FileManager.default.fileExists(atPath: u.path), let img = NSImage(contentsOf: u) else { break }
-            imgs.append(img)
-        }
-        idleFrames = imgs
+    /// 加载某动作的 AI 帧（没有则清空，回退到静态/程序动画）
+    func loadActionFrames(_ action: String) {
+        actionFrames = SpriteGen.loadFrames(action)
+        actionFPS = PetAnimAction(rawValue: action)?.fps ?? 3
     }
 
     private var stateWork: DispatchWorkItem?

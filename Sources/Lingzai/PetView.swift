@@ -74,11 +74,11 @@ struct PetView: View {
     private var cat: some View {
         TimelineView(.animation) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
-            if rt.petState == .idle, !rt.idleFrames.isEmpty {
-                // AI 生成的 idle 帧优先：4fps 循环播放
-                let i = Int(t * 4) % rt.idleFrames.count
-                Image(nsImage: rt.idleFrames[i]).resizable().interpolation(.none).scaledToFit()
-                    .frame(width: 80, height: 125)
+            if !rt.actionFrames.isEmpty {
+                // AI 生成的当前动作帧优先：对齐过、按动作 fps 循环
+                let i = Int(t * rt.actionFPS) % rt.actionFrames.count
+                Image(nsImage: rt.actionFrames[i]).resizable().interpolation(.none).scaledToFit()
+                    .frame(width: 92, height: 140)
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
             } else if rt.animator.currentFrame != nil {
                 petVisual

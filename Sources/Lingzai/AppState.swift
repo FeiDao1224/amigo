@@ -120,25 +120,30 @@ final class AppState: ObservableObject {
         PetImages.clearCache(); onCharacterChanged?("cat")
     }
 
-    // MARK: AI 生成 idle 动画（调本地 sprite-sheet-creator，localhost:3000）
-    @Published var spriteStatus = ""     // "" / "generating" / "success" / "failed:<可读错误>"
+    // MARK: AI 动作动画（直连你配置的模型端点，无需本地服务）
+    @Published var actionStatus: [String: String] = [:]   // action → "generating"/"success"/"failed:<msg>"
     var onGeneratedFramesChanged: (() -> Void)?
 
     @MainActor
-    func generateIdleSprite() async {
+    func generateAction(_ action: PetAnimAction) async {
+        guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
+            actionStatus[action.rawValue] = "failed:先在「模型」页配置并启用一个模型"; return
+        }
         let refURL = PetImages.dir.appendingPathComponent("\(config.character).png")
         guard let ref = try? Data(contentsOf: refURL), NSImage(data: ref) != nil else {
-            spriteStatus = "failed:当前形象没有图片可作参考（先选一个鱼 / 做个自定义形象）"; return
+            actionStatus[action.rawValue] = "failed:当前形象没有图片可作参考（先选一个鱼 / 做个自定义形象）"; return
         }
-        spriteStatus = "generating"
+        actionStatus[action.rawValue] = "generating"
         do {
-            _ = try await SpriteSheetClient.generateIdle(referencePNG: ref)
-            spriteStatus = "success"
-            onGeneratedFramesChanged?()
+            _ = try await SpriteGen.generate(action: action, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
+            actionStatus[action.rawValue] = "success"
+            if config.activeAction == action.rawValue { onGeneratedFramesChanged?() }
         } catch {
-            spriteStatus = "failed:\(error.localizedDescription)"
+            actionStatus[action.rawValue] = "failed:\(error.localizedDescription)"
         }
     }
+
+    func setActiveAction(_ a: String) { config.activeAction = a; persist(); onGeneratedFramesChanged?() }
 
     // MARK: 长期记忆
     func addMemory(content: String, category: String, longTerm: Bool) {
