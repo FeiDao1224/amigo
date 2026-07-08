@@ -10,15 +10,17 @@ private struct NavItem: Identifiable {
 
 struct SettingsView: View {
     @ObservedObject var state: AppState
-    @State private var sel = "model"
+    @State private var sel = "character"
+    @State private var showCustom = false
 
     private let items: [NavItem] = [
-        .init(key: "general", title: "通用",   subtitle: "系统与基础行为",   icon: "gearshape.fill",           color: .gray),
-        .init(key: "model",   title: "模型",   subtitle: "接入与中转站",     icon: "cpu",                      color: .blue),
-        .init(key: "pet",     title: "宠物",   subtitle: "形象·动作·性格·记忆·语音·交互", icon: "pawprint.fill",  color: .pink),
-        .init(key: "task",    title: "任务",   subtitle: "后续开发",         icon: "checklist",                color: .orange),
-        .init(key: "privacy", title: "隐私",   subtitle: "它懂你·但不偷看你",  icon: "lock.shield.fill",         color: .mint),
-        .init(key: "about",   title: "关于",   subtitle: "版本 · 激活",       icon: "info.circle.fill",         color: .gray),
+        .init(key: "general",  title: "通用", subtitle: "系统与基础行为",       icon: "gearshape.fill",         color: .gray),
+        .init(key: "model",    title: "模型", subtitle: "接入大模型",           icon: "cpu",                    color: .blue),
+        .init(key: "character",title: "形象", subtitle: "角色 · 自定义 · 动作",  icon: "pawprint.fill",          color: .pink),
+        .init(key: "persona",  title: "性格", subtitle: "名字 · 人设 · 记忆 · 隐私", icon: "heart.text.square.fill", color: .purple),
+        .init(key: "interact", title: "交互", subtitle: "点击 · 拖拽 · 语音",     icon: "hand.tap.fill",          color: .teal),
+        .init(key: "task",     title: "任务", subtitle: "后续开发",             icon: "checklist",              color: .orange),
+        .init(key: "about",    title: "关于", subtitle: "版本 · 激活",          icon: "info.circle.fill",       color: .gray),
     ]
 
     var body: some View {
@@ -68,12 +70,13 @@ struct SettingsView: View {
 
     @ViewBuilder private var content: some View {
         switch sel {
-        case "general":  general
-        case "model":    ModelPane(state: state)
-        case "pet":      pet
-        case "task":     placeholder("任务", "提醒 · 督促 · 陪你做 —— 后续开发，敬请期待")
-        case "privacy":  privacy
-        default:         about
+        case "general":   general
+        case "model":     ModelPane(state: state)
+        case "character": character
+        case "persona":   persona
+        case "interact":  interactVoice
+        case "task":      placeholder("任务", "提醒 · 督促 · 陪你做 —— 后续开发，敬请期待")
+        default:          about
         }
     }
 
@@ -203,21 +206,19 @@ struct SettingsView: View {
         }
     }
 
-    private var pet: some View {
+    private var character: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("宠物")
+            SectionHeader("形象")
             GroupCard {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("形象").font(.system(size: 13, weight: .medium))
-                    Text("选个角色（悬停有光效）；AI 动作按当前形象分别生成与切换")
+                    Text("选个角色（悬停有光效）；点最后的「自定义」上传图片生成你的专属形象。AI 动作按形象分别生成、换形象自动切换。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
-                    CharacterPicker(state: state)
+                    CharacterPicker(state: state, onCustom: { withAnimation { showCustom.toggle() } })
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 14).padding(.vertical, 11)
             }
-            SectionHeader("自定义形象")
-            CustomPetCard(state: state, onUpgrade: { sel = "pro" })
+            if showCustom { CustomPetCard(state: state) }
 
             SectionHeader("动作")
             GroupCard {
@@ -238,25 +239,22 @@ struct SettingsView: View {
                 ForEach(state.allActions) { def in ActionRow(state: state, def: def) }
                 NewActionCard(state: state)
             }
-
-            PersonaPane(state: state).id(state.config.character)
-            MemoryPane(state: state)
-            interact
-            voice
         }
     }
 
-    private func modeCard(_ t: String, _ s: String, selected: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: selected ? "menubar.dock.rectangle" : "macbook")
-                .font(.title2).foregroundStyle(selected ? Color.pink : .secondary)
-            Text(t).font(.system(size: 13, weight: .semibold))
-            Text(s).font(.system(size: 10)).foregroundStyle(.secondary)
+    private var persona: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            PersonaPane(state: state).id(state.config.character)
+            MemoryPane(state: state)
+            privacy
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? Color.pink : .white.opacity(0.06), lineWidth: selected ? 2 : 1))
+    }
+
+    private var interactVoice: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            interact
+            voice
+        }
     }
 
     private var voice: some View {

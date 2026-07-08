@@ -155,10 +155,11 @@ struct CharacterCard: View {
 
 struct CharacterPicker: View {
     @ObservedObject var state: AppState
+    var onCustom: () -> Void = {}
     private var chars: [(String, String)] {
         var a: [(String, String)] = []
         if FileManager.default.fileExists(atPath: PetImages.dir.appendingPathComponent("custom.png").path) {
-            a.append(("custom", "我的形象"))          // 自定义形象置顶
+            a.append(("custom", "我的形象"))          // 已生成的自定义置顶
         }
         a += [("anxious_fish", "看表鱼"), ("lazy_fish", "摸鱼鱼"), ("shocked_fish", "震惊鱼")]
         return a
@@ -171,8 +172,32 @@ struct CharacterPicker: View {
                         state.setCharacter(it.0)
                     }
                 }
+                CustomAddCard { onCustom() }          // 末尾：点它上传图片生成自定义形象
             }.padding(.horizontal, 2).padding(.vertical, 6)
         }
+    }
+}
+
+// 形象网格末尾的「自定义」卡片
+private struct CustomAddCard: View {
+    let onTap: () -> Void
+    @State private var hover = false
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "plus.circle.fill").font(.title).foregroundStyle(.secondary)
+                .frame(width: 74, height: 82)
+            Text("自定义").font(.system(size: 11))
+        }
+        .frame(width: 92, height: 116)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .strokeBorder(style: StrokeStyle(lineWidth: hover ? 2 : 1, dash: [5]))
+            .foregroundStyle(hover ? Color.accentColor : Color.secondary.opacity(0.5)))
+        .scaleEffect(hover ? 1.05 : 1)
+        .animation(.easeOut(duration: 0.18), value: hover)
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .onHover { hover = $0 }
+        .onTapGesture { onTap() }
     }
 }
 
@@ -238,6 +263,8 @@ struct CustomPetCard: View {
     @State private var preview: NSImage?
     @State private var level: Double = 0.5
     @State private var cutout = true
+    @State private var anthro = true
+    @State private var desc = ""
     @State private var localWorking = false
 
     private var rows: Int { Int((110 - level * 46).rounded()) }
@@ -284,6 +311,16 @@ struct CustomPetCard: View {
 
                 if !images.isEmpty {
                     if hasModel {
+                        Toggle("拟人化（没手脚的自动加脸 + 四肢，好做动作）", isOn: $anthro)
+                            .toggleStyle(.checkbox).font(.system(size: 11))
+                        HStack(spacing: 8) {
+                            Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
+                            Text("细腻").font(.caption2).foregroundStyle(.secondary)
+                            Slider(value: $level, in: 0...1)
+                            Text("块状").font(.caption2).foregroundStyle(.secondary)
+                        }
+                        TextField("补充描述（可选）：戴顶帽子 / 蓝色调 / 开心表情…", text: $desc)
+                            .textFieldStyle(.roundedBorder).font(.system(size: 12))
                         HStack {
                             if !state.customMsg.isEmpty {
                                 Text(state.customMsg).font(.caption)
@@ -292,7 +329,7 @@ struct CustomPetCard: View {
                             }
                             Spacer()
                             Button(state.customBusy ? "生成中…" : "AI 生成并设为桌宠") {
-                                Task { await state.setCustomPetAI(images: images) }
+                                Task { await state.setCustomPetAI(images: images, anthropomorphize: anthro, pixelLevel: level, description: desc) }
                             }.buttonStyle(.borderedProminent).disabled(state.customBusy)
                         }
                     } else {
@@ -303,7 +340,7 @@ struct CustomPetCard: View {
                                 .font(.system(size: 11)).onChange(of: cutout) { _ in rebuild() }
                         }
                         HStack {
-                            Text("本机像素化，图片不上传。").font(.system(size: 10)).foregroundStyle(.secondary)
+                            Text("本机像素化，图片不上传（配模型后可 AI 精修 + 拟人化 + 描述）。").font(.system(size: 10)).foregroundStyle(.secondary)
                             Spacer()
                             Button("设为桌宠") {
                                 if let s = images.first { state.setCustomPet(from: s, rows: rows, levels: levels, cutout: cutout) }

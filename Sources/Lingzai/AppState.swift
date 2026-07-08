@@ -114,15 +114,26 @@ final class AppState: ObservableObject {
     var hasModel: Bool { let p = activeProvider(); return (p?.apiKey.isEmpty == false) && (p?.baseUrl.isEmpty == false) }
 
     @MainActor
-    func setCustomPetAI(images: [NSImage]) async {
+    func setCustomPetAI(images: [NSImage], anthropomorphize: Bool, pixelLevel: Double, description: String) async {
         guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else { customMsg = "先在「模型」页配一个模型"; return }
         let refs = Array(images.prefix(3)).compactMap { $0.pngData() }
         guard !refs.isEmpty else { customMsg = "先加一张图"; return }
-        let prompt = """
-        Turn the subject shown in the reference image(s) into ONE single cute pixel-art character mascot for a desktop pet. Front-facing, full body, standing upright, centered.
-        Keep its recognizable colors, shape and features. If the subject is an object / food / logo / plant / anything WITHOUT a body or limbs, ANTHROPOMORPHIZE it: give it a simple cute face, two small cartoon arms and two legs so it can stand, walk and be animated.
-        Clean detailed 32-bit pixel art, bold 1px outline, limited palette, fully transparent background, no text, no extra objects, no background scenery.
-        """
+        var prompt = "Turn the subject shown in the reference image(s) into ONE single cute pixel-art character mascot for a desktop pet. Front-facing, full body, standing upright, centered. Keep its recognizable colors, shape and features."
+        if anthropomorphize {
+            prompt += " If the subject is an object / food / logo / plant / anything WITHOUT a body or limbs, ANTHROPOMORPHIZE it: give it a simple cute face, two small cartoon arms and two legs so it can stand, walk and be animated."
+        } else {
+            prompt += " Keep its natural form and silhouette; do NOT add limbs or a face it doesn't already have."
+        }
+        if pixelLevel > 0.66 {
+            prompt += " Chunky low-resolution 8-bit pixel art with big blocky pixels and a very limited palette."
+        } else if pixelLevel > 0.33 {
+            prompt += " Clean 16-bit pixel art, bold 1px outline, limited palette."
+        } else {
+            prompt += " Detailed 32-bit pixel art with fine pixels and soft shading."
+        }
+        let d = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !d.isEmpty { prompt += " Extra request from the user: \(d)." }
+        prompt += " Fully transparent background, no text, no extra objects, no background scenery."
         customBusy = true; customMsg = "AI 生成中…（约 30–90s）"
         do {
             let data = try await ImageGen.edit(baseUrl: p.baseUrl, apiKey: p.apiKey, prompt: prompt, references: refs, size: "1024x1024", quality: "medium")
