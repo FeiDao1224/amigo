@@ -15,7 +15,7 @@ enum MemoryStore {
     static var url: URL {
         let base = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Lingzai", isDirectory: true)
+            .appendingPathComponent("Amigo", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("memories.json")
     }

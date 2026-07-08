@@ -2,14 +2,22 @@
 
 市面常见做法的最小版：**试用期 + 激活码 + 设备绑定 + 可吊销**，后台在你自己手里。零依赖，只用 Node 自带模块，数据存本地 `licenses.json`。
 
-## 跑起来
+## 跑起来（Docker，推荐）
 ```bash
 cd license-server
-node server.js            # 默认 http://localhost:8787
-# 线上部署：放到你的 VPS，用 PM2/systemd 常驻，前面套 Nginx 上 HTTPS
+docker compose up -d --build          # 起服务，:8787，licenses.json 存在 ./data
+# 线上：把这目录扔你 VPS，docker compose up -d，前面套 Nginx/Caddy 上 HTTPS
 ```
+不想用 Docker 也行（零依赖）：`node server.js`（可 `PORT=xxxx LICENSE_DB=/path/licenses.json node server.js`）。
 
 ## 发激活码（卖之前生成，发给买家）
+Docker 里发码（数据落在挂载卷 /data）：
+```bash
+docker compose exec lingzai-license node admin.js issue --plan pro --devices 1 --days 365
+docker compose exec lingzai-license node admin.js list
+docker compose exec lingzai-license node admin.js revoke LZ-XXXX-XXXX-XXXX-XXXX
+```
+不用 Docker：
 ```bash
 node admin.js issue --plan pro --devices 1 --days 365   # 1 台设备、365 天
 node admin.js issue --plan pro --devices 3              # 3 台、永久(不填 days)

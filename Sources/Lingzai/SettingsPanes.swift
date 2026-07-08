@@ -238,7 +238,7 @@ struct MemoryPane: View {
             SectionHeader("手动添加一条")
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("比如：我不喜欢被催得太急 / 我在做灵崽这个项目", text: $content)
+                    TextField("比如：我不喜欢被催得太急 / 我在做Amigo这个项目", text: $content)
                         .textFieldStyle(.roundedBorder)
                     HStack {
                         Picker("类别", selection: $category) { ForEach(cats, id: \.self) { Text($0) } }.frame(width: 170)

@@ -20,11 +20,46 @@ final class AppState: ObservableObject {
     var onTaskDone: ((String) -> Void)?
 
     init() {
+        AppState.migrateDataDir()          // 改名 Amigo：把旧 Lingzai 数据目录整体搬过来（一次性、原子）
         config = ConfigStore.load(); memories = MemoryStore.load(); tasks = TodoStore.load()
         if config.deviceId.isEmpty { config.deviceId = UUID().uuidString }
         if config.installedAt == nil { config.installedAt = Date().timeIntervalSince1970 }
+        migrateCharacters()
         ConfigStore.save(config)
         licensed = config.licenseActivated && !licenseExpired
+    }
+
+    /// 一次性：把旧「Lingzai」数据目录改名为「Amigo」，保住已配置的模型 Key / 形象 / 记忆
+    static func migrateDataDir() {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let old = base.appendingPathComponent("Lingzai"), new = base.appendingPathComponent("Amigo")
+        let fm = FileManager.default
+        if fm.fileExists(atPath: old.path), !fm.fileExists(atPath: new.path) {
+            try? fm.moveItem(at: old, to: new)
+        }
+    }
+
+    /// 一次性迁移：旧「custom」自定义 → 内置香蕉猫；清掉不再内置的鱼；停用形象回默认
+    private func migrateCharacters() {
+        let fm = FileManager.default
+        let petsDir = PetImages.dir
+        let customPNG = petsDir.appendingPathComponent("custom.png")
+        let bananaPNG = petsDir.appendingPathComponent("banana_cat.png")
+        if fm.fileExists(atPath: customPNG.path), !fm.fileExists(atPath: bananaPNG.path) {
+            try? fm.copyItem(at: customPNG, to: bananaPNG)
+            let genCustom = SpriteGen.root.appendingPathComponent("custom")
+            let genBanana = SpriteGen.root.appendingPathComponent("banana_cat")
+            if fm.fileExists(atPath: genCustom.path), !fm.fileExists(atPath: genBanana.path) {
+                try? fm.copyItem(at: genCustom, to: genBanana)
+            }
+            try? fm.removeItem(at: customPNG)
+            try? fm.removeItem(at: genCustom)
+        }
+        if ["custom", "lazy_fish", "shocked_fish"].contains(config.character) { config.character = "banana_cat" }
+        for old in ["lazy_fish", "shocked_fish"] {
+            try? fm.removeItem(at: petsDir.appendingPathComponent("\(old).png"))
+            try? fm.removeItem(at: SpriteGen.root.appendingPathComponent(old))
+        }
     }
 
     // MARK: 激活 / 试用（服务器激活，后台自托管）
@@ -33,8 +68,8 @@ final class AppState: ObservableObject {
     var withinTrial: Bool { Date() < trialEndsAt }
     var trialDaysLeft: Int { max(0, Int(ceil(trialEndsAt.timeIntervalSinceNow / 86400))) }
     var licenseExpired: Bool { if let e = config.licenseExpiresAt { return Date().timeIntervalSince1970 * 1000 > e }; return false }
-    /// 能不能用：已激活(未过期) 或 试用期内
-    var entitled: Bool { (licensed && !licenseExpired) || withinTrial }
+    /// 能不能用：激活未开启时(默认)人人免费；开启后=已激活(未过期) 或 试用期内
+    var entitled: Bool { !License.enforced || (licensed && !licenseExpired) || withinTrial }
 
     /// 输入激活码 → 服务器激活并绑定本机；返回 "" 成功，否则错误文案
     @MainActor
@@ -98,14 +133,28 @@ final class AppState: ObservableObject {
     var onCharacterChanged: ((String) -> Void)?
     func setCharacter(_ id: String) { config.character = id; persist(); onCharacterChanged?(id) }
 
-    /// 自定义形象：把用户选的图像素化，存成 custom.png 并设为当前桌宠
+    /// 自定义形象：把用户选的图像素化，存成新形象槽（追加，不覆盖当前形象）并设为当前桌宠
     @discardableResult
     func setCustomPet(from image: NSImage, rows: Int, levels: Int, cutout: Bool) -> Bool {
-        let url = PetImages.dir.appendingPathComponent("custom.png")
+        let pet = CustomPet()
+        let url = PetImages.dir.appendingPathComponent("\(pet.id).png")
         guard Pixelizer.writePNG(image, to: url, rows: rows, levels: levels, scale: 3, cutout: cutout) else { return false }
+        config.customPets.append(pet)
         PetImages.clearCache()
-        setCharacter("custom")
+        setCharacter(pet.id)          // 追加后切到新形象（内部会 persist）
         return true
+    }
+
+    /// 删除某个自定义形象（内置形象不可删）
+    func deleteCustomPet(_ id: String) {
+        guard config.customPets.contains(where: { $0.id == id }) else { return }
+        config.customPets.removeAll { $0.id == id }
+        config.personas[id] = nil
+        try? FileManager.default.removeItem(at: PetImages.dir.appendingPathComponent("\(id).png"))
+        try? FileManager.default.removeItem(at: SpriteGen.root.appendingPathComponent(id))
+        PetImages.clearCache()
+        if config.character == id { setCharacter("banana_cat") } else { persist() }
+        onGeneratedFramesChanged?()
     }
 
     // 有模型时：用 AI 把 1~3 张参考图生成更精致的像素形象（非生物自动拟人化加四肢）
@@ -139,10 +188,12 @@ final class AppState: ObservableObject {
             let data = try await ImageGen.edit(baseUrl: p.baseUrl, apiKey: p.apiKey, prompt: prompt, references: refs, size: "1024x1024", quality: "medium")
             guard let img = NSImage(data: data) else { customBusy = false; customMsg = "生成结果解析失败"; return }
             let cleaned = Pixelizer.cutoutImage(img) ?? img
-            let url = PetImages.dir.appendingPathComponent("custom.png")
+            let pet = CustomPet()
+            let url = PetImages.dir.appendingPathComponent("\(pet.id).png")
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             if let png = cleaned.pngData() { try? png.write(to: url) }
-            PetImages.clearCache(); setCharacter("custom")
+            config.customPets.append(pet)
+            PetImages.clearCache(); setCharacter(pet.id)   // 追加新形象，不覆盖当前
             customBusy = false; customMsg = "已生成"
         } catch {
             customBusy = false; customMsg = ""
@@ -153,7 +204,7 @@ final class AppState: ObservableObject {
     // MARK: 隐私 / 数据主权（它懂你，但不偷看你）
     var dataDir: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Lingzai", isDirectory: true)
+            .appendingPathComponent("Amigo", isDirectory: true)
     }
     /// 在访达里定位数据文件夹（让你亲眼看见数据都在本机）
     func revealDataFolder() {
@@ -168,7 +219,7 @@ final class AppState: ObservableObject {
         panel.allowsMultipleSelection = false; panel.prompt = "导出到这里"
         guard panel.runModal() == .OK, let dest = panel.url else { return false }
         let fm = FileManager.default
-        let out = dest.appendingPathComponent("灵崽数据备份", isDirectory: true)
+        let out = dest.appendingPathComponent("Amigo数据备份", isDirectory: true)
         try? fm.createDirectory(at: out, withIntermediateDirectories: true)
         for name in ["memories.json", "todos.json"] {
             let src = dataDir.appendingPathComponent(name)
@@ -187,9 +238,10 @@ final class AppState: ObservableObject {
         for name in ["memories.json", "todos.json"] { try? fm.removeItem(at: dataDir.appendingPathComponent(name)) }
         try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
         memories = []; tasks = []
-        config.personas = [:]; config.customActions = []
-        config.character = "anxious_fish"; persist()
-        PetImages.clearCache(); onCharacterChanged?("anxious_fish")
+        config.personas = [:]; config.customActions = []; config.customPets = []
+        config.character = "banana_cat"; persist()
+        PetImages.installDefaults()          // 恢复内置形象，避免清空后空白
+        PetImages.clearCache(); onCharacterChanged?("banana_cat")
     }
 
     // MARK: AI 动作动画（直连你配置的模型端点，无需本地服务）
@@ -276,6 +328,7 @@ final class AppState: ObservableObject {
         AppState.clickFunctions + allActions.map { ("act:" + $0.id, "播放 · " + $0.title) }
     }
     func setAgentMonitor(_ v: Bool) { config.agentMonitor = v; persist() }
+    func markOnboarded() { config.onboarded = true; persist() }
     func setClick(_ trigger: String, _ v: String) {
         switch trigger {
         case "left": config.clickLeft = v; case "double": config.clickDouble = v
@@ -351,7 +404,7 @@ final class AppState: ObservableObject {
     }
 
     // MARK: 性格（每个形象一套人设）
-    func currentCard() -> CardData { config.personas[config.character] ?? .default }
+    func currentCard() -> CardData { config.personas[config.character] ?? .builtinDefault(for: config.character) }
     func setCard(_ c: CardData) { config.personas[config.character] = c; persist() }
     func resetCard() { config.personas[config.character] = nil; persist() }
 

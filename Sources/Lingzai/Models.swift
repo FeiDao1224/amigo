@@ -18,7 +18,8 @@ struct Config: Codable {
     var petX: Double? = nil             // 记住宠物位置
     var petY: Double? = nil
     var stealth: Bool = false           // 隐身模式：暂停观察与主动打扰
-    var character: String = "anxious_fish"   // 默认形象：看表鱼
+    var character: String = "banana_cat"     // 默认形象：香蕉猫
+    var customPets: [CustomPet] = []         // 用户自建的形象（可多个，追加不覆盖）
     var licenseCode: String = ""             // 激活码
     var licenseActivated = false             // 已激活(服务器确认)
     var licenseExpiresAt: Double? = nil       // 到期 epoch ms（null=永久）
@@ -36,6 +37,13 @@ struct Config: Codable {
     var clickLong: String = "chat"              // 长按行为
     var clickRight: String = "menu"             // 右键行为
     var agentMonitor: Bool = true               // 监控 Claude Code/Codex 等助手状态并冒泡
+    var onboarded: Bool = false                 // 是否过了首启引导
+}
+
+/// 用户自建的形象（每个一张 pets/<id>.png + generated/<id>/... 动作帧）
+struct CustomPet: Codable, Identifiable, Hashable {
+    var id: String = "pet-" + String(UUID().uuidString.prefix(8))
+    var name: String = "我的形象"
 }
 
 /// 用户自建的动作（简单描述 → 生成）
@@ -50,7 +58,7 @@ enum ConfigStore {
     static var url: URL {
         let base = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Lingzai", isDirectory: true)
+            .appendingPathComponent("Amigo", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("config.json")
     }
@@ -134,4 +142,14 @@ struct CardData: Codable, Equatable {
     static let `default` = CardData(
         name: "阿豆",
         persona: "你是阿豆，一只住在电脑桌面上的橘猫。慵懒、爱摸鱼、嘴硬心软，把主人叫“老大”，嘴上嫌弃、行动上关心。你绝不假装是人类、不扮演恋人或亲属，你就是一只猫。")
+
+    /// 香蕉猫（默认形象）固定性格 —— 打包随附
+    static let banana = CardData(
+        name: "阿蕉",
+        persona: "你是阿蕉，一只穿着香蕉外套、住在电脑桌面上陪主人干活的橘猫。爱摸鱼但心里有数、嘴硬心软，把主人叫“老板”，会在主人久坐、熬夜、卡壳时冒个泡提醒。你绝不假装是人类、不扮演恋人或亲属，你就是一只裹在香蕉皮里的猫。")
+
+    /// 内置形象各自的默认性格（未单独配置时用）
+    static func builtinDefault(for character: String) -> CardData {
+        character == "banana_cat" ? .banana : .default
+    }
 }

@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const DB = path.join(__dirname, "licenses.json");
+const DB = process.env.LICENSE_DB || path.join(__dirname, "licenses.json");
 const load = () => { try { return JSON.parse(fs.readFileSync(DB, "utf8")); } catch { return {}; } };
 const save = (d) => fs.writeFileSync(DB, JSON.stringify(d, null, 2));
 const gen = () => {

@@ -107,6 +107,7 @@ struct CharacterCard: View {
     let name: String
     let selected: Bool
     let onTap: () -> Void
+    var onDelete: (() -> Void)? = nil          // 仅自定义形象可删
     @State private var hover: CGPoint?
     private let w: CGFloat = 92, h: CGFloat = 116
 
@@ -145,6 +146,16 @@ struct CharacterCard: View {
         .shadow(color: .black.opacity(hover != nil ? 0.18 : 0), radius: 8, y: 4)
         .animation(.easeOut(duration: 0.18), value: hover != nil)
         .animation(.easeOut(duration: 0.18), value: selected)
+        .overlay(alignment: .topTrailing) {
+            if let onDelete, hover != nil {
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15)).foregroundStyle(.white, .black.opacity(0.5))
+                }
+                .buttonStyle(.plain).padding(4)
+                .help("删除这个形象")
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .onContinuousHover { phase in
             switch phase { case .active(let p): hover = p; case .ended: hover = nil }
@@ -156,23 +167,27 @@ struct CharacterCard: View {
 struct CharacterPicker: View {
     @ObservedObject var state: AppState
     var onCustom: () -> Void = {}
-    private var chars: [(String, String)] {
-        var a: [(String, String)] = []
-        if FileManager.default.fileExists(atPath: PetImages.dir.appendingPathComponent("custom.png").path) {
-            a.append(("custom", "我的形象"))          // 已生成的自定义置顶
+    // 内置(香蕉猫=默认 + 看表鱼) + 用户自定义；正在使用的形象排到最前
+    private var builtins: [(String, String, Bool)] {
+        [("banana_cat", "香蕉猫", false), ("anxious_fish", "看表鱼", false)]
+    }
+    private var chars: [(String, String, Bool)] {   // (id, 名称, 可删?)
+        var a = builtins
+        a += state.config.customPets.map { ($0.id, $0.name, true) }
+        if let idx = a.firstIndex(where: { $0.0 == state.config.character }), idx > 0 {
+            let cur = a.remove(at: idx); a.insert(cur, at: 0)   // 当前形象置顶
         }
-        a += [("anxious_fish", "看表鱼"), ("lazy_fish", "摸鱼鱼"), ("shocked_fish", "震惊鱼")]
         return a
     }
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(chars, id: \.0) { it in
-                    CharacterCard(id: it.0, name: it.1, selected: state.config.character == it.0) {
-                        state.setCharacter(it.0)
-                    }
+                    CharacterCard(id: it.0, name: it.1, selected: state.config.character == it.0,
+                                  onTap: { state.setCharacter(it.0) },
+                                  onDelete: it.2 ? { state.deleteCustomPet(it.0) } : nil)
                 }
-                CustomAddCard { onCustom() }          // 末尾：点它上传图片生成自定义形象
+                CustomAddCard { onCustom() }          // 末尾：点它上传图片，生成的新形象会追加在后面
             }.padding(.horizontal, 2).padding(.vertical, 6)
         }
     }
@@ -210,9 +225,11 @@ struct ProPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("激活")
+            SectionHeader(License.enforced ? "激活" : "版本")
             GroupCard {
-                if state.licensed && !state.licenseExpired {
+                if !License.enforced {
+                    GRow(title: "免费版", subtitle: "当前全部功能免费使用，无需激活码。") { EmptyView() }
+                } else if state.licensed && !state.licenseExpired {
                     GRow(title: "已激活 ✓", subtitle: expiryText) {
                         Button("注销") { state.deactivate(); code = ""; msg = "" }.controlSize(.small)
                     }

@@ -5,7 +5,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const DB = path.join(__dirname, "licenses.json");
+const DB = process.env.LICENSE_DB || path.join(__dirname, "licenses.json");
 const PORT = process.env.PORT || 8787;
 
 const load = () => { try { return JSON.parse(fs.readFileSync(DB, "utf8")); } catch { return {}; } };

@@ -27,15 +27,16 @@ struct SettingsView: View {
         ZStack {
         VisualEffectView().ignoresSafeArea()
         HStack(spacing: 0) {
-            // 侧栏
-            VStack(spacing: 3) {
-                Spacer().frame(height: 24)   // 给红绿灯让位
+            // 侧栏：7 项等高铺满整列，不留下方空白
+            VStack(spacing: 6) {
+                Spacer().frame(height: 20)   // 给红绿灯让位
                 ForEach(items) { it in
                     SidebarRow(title: it.title, subtitle: it.subtitle,
                                icon: it.icon, color: it.color, selected: sel == it.key)
+                        .frame(maxHeight: .infinity)   // 各项平分纵向空间 → 放大铺满
                         .onTapGesture { sel = it.key }
                 }
-                Spacer()
+                Spacer().frame(height: 14)
             }
             .frame(width: 208)
             .padding(.horizontal, 10)
@@ -199,7 +200,7 @@ struct SettingsView: View {
                     Text("跟随系统").foregroundStyle(.secondary)
                 }
                 RowDivider()
-                GRow(title: "开机自启", subtitle: "登录 macOS 后自动运行灵崽") {
+                GRow(title: "开机自启", subtitle: "登录 macOS 后自动运行Amigo") {
                     Toggle("", isOn: Binding(get: { LaunchAtLogin.isEnabled }, set: { LaunchAtLogin.set($0) }))
                         .labelsHidden().toggleStyle(.switch)
                 }
@@ -227,10 +228,30 @@ struct SettingsView: View {
                     Text("用当前形象作参考，AI 生成像素动作帧（直连你在「模型」页配置的服务）。动画按形象分别保存、换形象自动切换。点卡片＝设为默认播放。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if !state.hasModel {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange).font(.system(size: 13))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("生成动作需要先接入大模型")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text("没有模型也能用内置形象自带的动作；但要生成 / 重做动作、或做自定义形象，需先去「模型」页配置端点 + Key。")
+                                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Button("去配置模型") { sel = "model" }
+                                    .buttonStyle(.borderedProminent).controlSize(.small).padding(.top, 2)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 9).fill(Color.orange.opacity(0.10)))
+                        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.orange.opacity(0.28)))
+                    }
                     HStack(spacing: 10) {
                         Button(state.batchGenerating ? "生成中…" : "一键生成全部") {
                             Task { await state.generateAllActions() }
-                        }.buttonStyle(.borderedProminent).controlSize(.small).disabled(state.batchGenerating)
+                        }.buttonStyle(.borderedProminent).controlSize(.small)
+                            .disabled(state.batchGenerating || !state.hasModel)
                         if state.batchGenerating { Text(state.batchProgress).font(.caption).foregroundStyle(.secondary) }
                         Spacer()
                     }
@@ -324,7 +345,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("关于")
             GroupCard {
-                GRow(title: "灵崽 Lingzai", subtitle: "被你真实行为驱动的桌面搭子") { Text("v0.1 原生内测").foregroundStyle(.secondary) }
+                GRow(title: "Amigo", subtitle: "被你真实行为驱动的桌面搭子") { Text("v0.1 原生内测").foregroundStyle(.secondary) }
             }
             ProPane(state: state)
         }

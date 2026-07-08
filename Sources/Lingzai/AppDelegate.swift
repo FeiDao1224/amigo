@@ -21,11 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let runtime = PetRuntime()
     private let chat = ChatSession()
     private var chatWindow: NSWindow?
+    private var onboardingWindow: NSWindow?
     private var engine: BehaviorEngine?
     private var agentBridge: AgentBridge?
     private var focusTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        PetImages.installDefaults()   // 首启：内置默认形象拷到本机（新用户不空白）
         NSApp.setActivationPolicy(state.config.dockVisible ? .regular : .accessory)
         setupMainMenu()   // 让 Cmd+C/V/X/A 在文本框里生效
 
@@ -84,6 +86,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ab.isEnabled = { [weak self] in (self?.state.config.agentMonitor ?? false) && (self?.state.entitled ?? false) }
         ab.start()
         agentBridge = ab
+
+        if !state.config.onboarded {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.showOnboarding() }
+        }
     }
 
     // 深链导入（打包成 .app 后，点击 lingzai:// / 中转站分享链接会走这里）
@@ -99,9 +105,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let appItem = NSMenuItem()
         main.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "隐藏灵崽", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "隐藏 Amigo", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "退出灵崽", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "退出 Amigo", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
         let editItem = NSMenuItem()
@@ -122,12 +128,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: 状态栏
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "pawprint.fill", accessibilityDescription: "灵崽")
+        statusItem.button?.image = NSImage(systemSymbolName: "pawprint.fill", accessibilityDescription: "Amigo")
         let menu = NSMenu()
         let chatItem = NSMenuItem(title: "和阿豆聊聊…", action: #selector(openChat), keyEquivalent: "")
         let open = NSMenuItem(title: "打开设置…", action: #selector(openSettings), keyEquivalent: ",")
         let toggle = NSMenuItem(title: "显示 / 隐藏宠物", action: #selector(togglePet), keyEquivalent: "")
-        let quit = NSMenuItem(title: "退出灵崽", action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "退出 Amigo", action: #selector(quitApp), keyEquivalent: "q")
         for it in [chatItem, open, toggle, quit] { it.target = self }
         menu.addItem(chatItem); menu.addItem(open); menu.addItem(toggle); menu.addItem(.separator()); menu.addItem(quit)
         statusItem.menu = menu
@@ -182,12 +188,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let frame = panel.frame
         let mouse = NSEvent.mouseLocation
 
-        // 点击穿透：只有鼠标落在宠物身上（或正在拖动/对话）才接收点击，其余透传到桌面
-        let catRect = CGRect(x: frame.midX - 60, y: frame.minY + 6, width: 120, height: 160)
-        let wantIgnore = (runtime.chatting || dragOffset != nil) ? false : !catRect.contains(mouse)
+        // 点击穿透：鼠标落在宠物身上（或正在拖动/对话）才接收点击，其余透传到桌面。
+        // 抓取区放宽 + 滞回（进入用紧区、离开用宽区），既好抓又不会在边缘反复抖动导致拖动抓不住。
+        let interactive = !panel.ignoresMouseEvents
+        let grab = petGrabRect(frame, expand: interactive ? 46 : 0)   // 已在交互态→用更大的宽区留边
+        let wantIgnore = (runtime.chatting || dragOffset != nil) ? false : !grab.contains(mouse)
         if panel.ignoresMouseEvents != wantIgnore { panel.ignoresMouseEvents = wantIgnore }   // 只在变化时设，省窗口服务器开销
 
         updateBehaviorAction()
+    }
+
+    /// 宠物可抓取区域：面板底部居中（猫身 92×140 + 上方气泡余量），比可见猫身宽松一圈，好抓。
+    private func petGrabRect(_ frame: NSRect, expand: CGFloat) -> CGRect {
+        let w: CGFloat = 150, h: CGFloat = 210
+        return CGRect(x: frame.midX - w / 2 - expand, y: frame.minY + 2 - expand,
+                      width: w + expand * 2, height: h + expand * 2)
     }
 
     // 行为驱动：对话/等回复→打电话；拖动→走/跑(带方向)；用电脑→工作；桌面空→待着
@@ -280,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let speak = NSMenuItem(title: "摸摸头", action: #selector(menuSpeak), keyEquivalent: "")
         let settings = NSMenuItem(title: "打开设置…", action: #selector(openSettings), keyEquivalent: "")
         let hide = NSMenuItem(title: "隐藏宠物", action: #selector(togglePet), keyEquivalent: "")
-        let quit = NSMenuItem(title: "退出灵崽", action: #selector(quitApp), keyEquivalent: "")
+        let quit = NSMenuItem(title: "退出 Amigo", action: #selector(quitApp), keyEquivalent: "")
         for it in [speak, settings, hide, quit] { it.target = self }
         menu.items = [speak, settings, hide, .separator(), quit]
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
@@ -310,7 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
-            w.title = "灵崽 · 设置"
+            w.title = "Amigo · 设置"
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
             w.isOpaque = false
@@ -327,10 +342,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // 关掉设置/聊天窗 → 切回菜单栏模式（尊重 Dock 显示设置）
+    // 首启引导窗
+    private func showOnboarding() {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 540),
+                         styleMask: [.titled, .closable, .fullSizeContentView],
+                         backing: .buffered, defer: false)
+        w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden
+        w.isReleasedWhenClosed = false; w.delegate = self
+        let view = OnboardingView(
+            onConfigureModel: { [weak self] in self?.state.markOnboarded(); self?.onboardingWindow?.close(); self?.openSettings() },
+            onDone: { [weak self] in self?.state.markOnboarded(); self?.onboardingWindow?.close() }
+        )
+        let host = NSHostingView(rootView: view)
+        w.contentView = host
+        w.setContentSize(host.fittingSize)
+        w.center()
+        onboardingWindow = w
+        NSApp.setActivationPolicy(.regular)
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // 关掉设置/聊天/引导窗 → 切回菜单栏模式（尊重 Dock 显示设置）
     func windowWillClose(_ notification: Notification) {
         let w = notification.object as? NSWindow
-        guard w === settingsWindow || w === chatWindow else { return }
+        guard w === settingsWindow || w === chatWindow || w === onboardingWindow else { return }
         NSApp.setActivationPolicy(state.config.dockVisible ? .regular : .accessory)
     }
 

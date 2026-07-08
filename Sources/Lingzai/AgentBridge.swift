@@ -73,7 +73,7 @@ final class AgentBridge {
         try? FileManager.default.createDirectory(at: p.deletingLastPathComponent(), withIntermediateDirectories: true)
         let script = #"""
         #!/bin/bash
-        # 灵崽 · 助手状态桥：AI 助手的 hook 调它，把状态喂给桌宠
+        # Amigo · 助手状态桥：AI 助手的 hook 调它，把状态喂给桌宠
         STATE="${1:-working}"; AGENT="${2:-Claude Code}"
         DIR="$HOME/Library/Application Support/Lingzai/agents"; mkdir -p "$DIR"
         IN="$(cat 2>/dev/null)"

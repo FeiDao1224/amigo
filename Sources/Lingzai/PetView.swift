@@ -72,6 +72,7 @@ struct PetView: View {
             } else if let img = PetImages.image(rt.characterImageName) {
                 Image(nsImage: img).resizable().interpolation(.none).scaledToFit()
                     .frame(width: 92, height: 140)
+                    .scaleEffect(x: rt.facingLeft ? -1 : 1, y: 1)   // 没生成走路帧时,静态图也随拖动方向翻转
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
                     .modifier(PetMotion(state: rt.petState, time: t))
             } else {

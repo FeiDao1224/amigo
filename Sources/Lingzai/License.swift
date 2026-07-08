@@ -5,6 +5,10 @@ import Foundation
 enum License {
     static let serverBase = "http://localhost:8787"
 
+    /// 总开关：默认发布**不带激活码**，人人免费用。
+    /// 以后想开收费：把这里改成 true，再把 serverBase 换成你线上地址即可。
+    static let enforced = false
+
     struct Result {
         let ok: Bool
         let expiresAt: Double?     // epoch ms，nil=永久

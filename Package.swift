@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "Lingzai",
+    name: "Amigo",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "Lingzai",
+            name: "Amigo",
             path: "Sources/Lingzai"
         )
     ]

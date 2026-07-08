@@ -178,21 +178,22 @@ struct SidebarRow: View {
     let color: Color
     let selected: Bool
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 27, height: 27)
-                .background(color.gradient, in: RoundedRectangle(cornerRadius: 7))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13, weight: .semibold))
-                Text(subtitle).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                .frame(width: 34, height: 34)
+                .background(color.gradient, in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 14, weight: .semibold))
+                Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 9).padding(.vertical, 7)
+        .padding(.horizontal, 11)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 9)
+            RoundedRectangle(cornerRadius: 11)
                 .fill(selected ? Color.primary.opacity(0.10) : Color.clear)
         )
         .contentShape(Rectangle())

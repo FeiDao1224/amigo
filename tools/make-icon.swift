@@ -1,6 +1,6 @@
 import AppKit
 import CoreGraphics
-let fishPath = NSString(string: "~/Library/Application Support/Lingzai/pets/anxious_fish.png").expandingTildeInPath
+let fishPath = NSString(string: "~/Library/Application Support/Amigo/pets/anxious_fish.png").expandingTildeInPath
 guard let fish = NSImage(contentsOfFile: fishPath)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { print("no fish png"); exit(1) }
 let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
 func ctx(_ s: Int) -> CGContext { CGContext(data:nil,width:s,height:s,bitsPerComponent:8,bytesPerRow:0,space:sRGB,bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue)! }

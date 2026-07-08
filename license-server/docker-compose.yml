@@ -1,0 +1,12 @@
+services:
+  lingzai-license:
+    build: .
+    container_name: lingzai-license
+    ports:
+      - "8787:8787"
+    environment:
+      - PORT=8787
+      - LICENSE_DB=/data/licenses.json
+    volumes:
+      - ./data:/data           # licenses.json 持久化到宿主机 ./data
+    restart: unless-stopped

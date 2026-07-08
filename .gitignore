@@ -6,3 +6,5 @@ license-server/licenses.json
 license-server/node_modules/
 dist/
 AppIcon.iconset/
+.DS_Store
+**/.DS_Store

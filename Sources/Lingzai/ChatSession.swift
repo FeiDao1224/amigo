@@ -10,7 +10,7 @@ struct ChatMsg: Identifiable, Equatable, Codable {
 enum ChatStore {
     static var url: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Lingzai", isDirectory: true)
+            .appendingPathComponent("Amigo", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("chat.json")
     }
@@ -84,7 +84,7 @@ final class ChatSession: ObservableObject {
             .joined(separator: "\n")
         let sys = """
         你从对话里抽取值得【长期记住的关于主人】的事实（偏好 / 目标 / 正在做的项目 / 常提到的人 / 情绪触发点 / 习惯）。
-        只输出 JSON 数组，例：[{"content":"在做灵崽这个项目","category":"项目"}]，category 取 偏好/目标/项目/关系/情绪/任务/其它。
+        只输出 JSON 数组，例：[{"content":"在做Amigo这个项目","category":"项目"}]，category 取 偏好/目标/项目/关系/情绪/任务/其它。
         没有值得记的就输出 []。绝不编造、不要记一次性的闲聊。
         """
         Task {
