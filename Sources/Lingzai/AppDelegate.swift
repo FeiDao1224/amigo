@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let chat = ChatSession()
     private var chatWindow: NSWindow?
     private var engine: BehaviorEngine?
+    private var agentBridge: AgentBridge?
     private var focusTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -78,6 +79,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         e.isPetVisible = { [weak self] in self?.petPanel?.isVisible ?? false }
         e.start()
         engine = e
+
+        let ab = AgentBridge(runtime: runtime)
+        ab.isEnabled = { [weak self] in (self?.state.config.agentMonitor ?? false) && (self?.state.entitled ?? false) }
+        ab.start()
+        agentBridge = ab
     }
 
     // 深链导入（打包成 .app 后，点击 lingzai:// / 中转站分享链接会走这里）

@@ -275,6 +275,7 @@ final class AppState: ObservableObject {
     var clickOptions: [(String, String)] {
         AppState.clickFunctions + allActions.map { ("act:" + $0.id, "播放 · " + $0.title) }
     }
+    func setAgentMonitor(_ v: Bool) { config.agentMonitor = v; persist() }
     func setClick(_ trigger: String, _ v: String) {
         switch trigger {
         case "left": config.clickLeft = v; case "double": config.clickDouble = v

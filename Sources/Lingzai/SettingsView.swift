@@ -86,6 +86,7 @@ struct SettingsView: View {
     private var proactiveLLMBinding: Binding<Bool> { Binding(get: { state.config.proactiveLLM }, set: { state.setProactiveLLM($0) }) }
     private var stealthBinding: Binding<Bool> { Binding(get: { state.config.stealth }, set: { state.setStealth($0) }) }
     private var behaviorBinding: Binding<Bool> { Binding(get: { state.config.behaviorDriven }, set: { state.setBehaviorDriven($0) }) }
+    private var agentBinding: Binding<Bool> { Binding(get: { state.config.agentMonitor }, set: { state.setAgentMonitor($0) }) }
     private func mapRow(_ title: String, _ trigger: String, _ current: String) -> some View {
         GRow(title: title) {
             Picker("", selection: Binding(get: { current }, set: { state.setMap(trigger, $0) })) {
@@ -298,6 +299,23 @@ struct SettingsView: View {
                 }
             }
             Text("每个点击都能改成：某功能，或播放某个动作。动作没生成时会回退到静态 / 程序动画。")
+                .font(.caption).foregroundStyle(.secondary)
+
+            SectionHeader("助手监控（实验）")
+            GroupCard {
+                GRow(title: "监控 AI 助手状态", subtitle: "Claude Code / Codex 忙完、卡住要确认、报错时，桌宠冒泡告诉你") {
+                    Toggle("", isOn: agentBinding).labelsHidden().toggleStyle(.switch)
+                }
+                RowDivider()
+                GRow(title: "接入 Claude Code", subtitle: "复制 hook 配置，贴进 ~/.claude/settings.json 的 hooks 里") {
+                    Button("复制 Hook 配置") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(AgentBridge.claudeHookJSON(), forType: .string)
+                        state.showToast("已复制，贴进 ~/.claude/settings.json 的 hooks 里即可")
+                    }.controlSize(.small)
+                }
+            }
+            Text("原理：助手用 hook 把状态写到本机 agents/ 目录，桌宠盯着读——不偷看终端。Codex/其它助手同理，用它的 notify/hook 调 bin/agent-hook.sh。")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

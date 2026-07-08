@@ -4,3 +4,5 @@ Application Support/
 tools/license-private.key
 license-server/licenses.json
 license-server/node_modules/
+dist/
+AppIcon.iconset/

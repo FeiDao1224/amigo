@@ -35,6 +35,7 @@ struct Config: Codable {
     var clickDouble: String = "none"            // 双击行为
     var clickLong: String = "chat"              // 长按行为
     var clickRight: String = "menu"             // 右键行为
+    var agentMonitor: Bool = true               // 监控 Claude Code/Codex 等助手状态并冒泡
 }
 
 /// 用户自建的动作（简单描述 → 生成）
