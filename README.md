@@ -1,0 +1,72 @@
+# Amigo · 桌面搭子
+
+被你真实行为驱动的原生 macOS 桌宠。一只住在桌面、会观察你的状态、陪你干活、还能被你调教性格的小家伙。
+
+- 原生 SwiftPM + AppKit/SwiftUI，无 Xcode 工程，`swift build` 直接跑
+- BYOK：接你自己的大模型端点（OpenAI 兼容），聊天 / 生成形象 / 生成动作都直连，数据只走你和你选的模型
+- 行为驱动：久坐 / 熬夜 / 拖动 / 打开软件 → 自动切动作、主动冒泡
+- 默认免费；激活码体系已内置（自托管、可选，默认关闭）
+
+> 说明：仓库文件夹与源码目录仍叫 `lingzai-mac` / `Sources/Lingzai`（历史原因，纯内部路径），**产品名一律 Amigo**（App、Bundle、数据目录都是 Amigo）。
+
+---
+
+## 开发运行
+
+```bash
+swift build            # 编译
+swift run              # 直接跑（菜单栏出现爪印图标，桌面出现宠物）
+```
+
+- 需要 macOS 13+、Swift 6.x 工具链
+- 首次运行会把内置形象（香蕉猫 + 看表鱼）连动作帧拷到数据目录，开箱即动
+
+## 打包分发（.app）
+
+```bash
+swift build -c release
+bash tools/package-app.sh          # 产出 dist/Amigo.app
+```
+
+`package-app.sh` 会：写 `Info.plist`（`com.amigo.app`、`LSUIElement`）、内置图标、把 `Assets/pets`（形象 + 动作帧）拷进包、**ad-hoc 自签**（不需要 Apple 开发者账号 / 公证）。
+
+发给别人时若被 Gatekeeper 拦（未署名开发者）：
+- 右键 → 打开；或终端 `xattr -cr /路径/Amigo.app` 后再双击
+
+## 配模型（BYOK）
+
+设置 →「模型」页填端点 + Key（支持智谱 / DeepSeek / Kimi / 通义 / 硅基流动，或任意 OpenAI 兼容中转站）。
+没配模型也能用内置形象自带的动作；**生成新动作 / 自定义形象**才需要模型。
+
+## 激活服务（可选，默认免费）
+
+默认发布不带激活码：`Sources/Lingzai/License.swift` 里 `enforced = false`，人人免费用。
+
+要开收费：
+1. `License.enforced = true`
+2. `License.serverBase` 从 `http://localhost:8787` 换成你的线上域名
+3. 起自托管激活服务（零依赖 Node，数据存本地 JSON）：
+
+```bash
+cd license-server && docker compose up -d --build      # :8787，licenses.json 持久化到 ./data
+docker compose exec lingzai-license node admin.js issue --plan pro --devices 1 --days 365   # 发码
+```
+
+详见 [license-server/README.md](license-server/README.md)。
+
+## 数据位置
+
+全部只存本机：`~/Library/Application Support/Amigo/`
+（`config.json` 含模型 Key、`pets/` 形象与动作帧、`memories.json`、`chat.json`、`todos.json`）。
+设置 →「性格 · 隐私」里可一键在访达打开 / 导出 / 清空。
+
+## 目录结构
+
+```
+Sources/Lingzai/     App 源码（AppKit + SwiftUI）
+Assets/pets/         打包随附的内置形象 + 动作帧
+tools/               package-app.sh（打包自签）、make-icon.swift
+license-server/      自托管激活服务（Node 零依赖 + Docker）
+Docs/                动画系统等说明
+AppIcon.icns         App 图标
+```
