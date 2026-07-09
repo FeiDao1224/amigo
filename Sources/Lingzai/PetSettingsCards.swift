@@ -297,6 +297,10 @@ struct CustomPetCard: View {
                     .font(.system(size: 11)).foregroundStyle(hasModel ? .green : .secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                Label("请使用原创或你有权使用的素材；不要生成受版权 / 商标保护的卡通形象或他人肖像。", systemImage: "checkmark.shield")
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 HStack(spacing: 10) {
                     ForEach(Array(images.enumerated()), id: \.offset) { idx, img in
                         ZStack(alignment: .topTrailing) {

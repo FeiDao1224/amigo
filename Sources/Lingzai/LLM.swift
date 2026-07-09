@@ -21,7 +21,8 @@ enum LLM {
         req.timeoutInterval = 40
         req.setValue("Bearer \(provider.apiKey)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        var body: [String: Any] = ["messages": messages]
+        // 合规红线：每次请求都注入，作为最高优先级约束
+        var body: [String: Any] = ["messages": Compliance.inject(into: messages)]
         if !provider.model.isEmpty { body["model"] = provider.model }   // 中转站留空则用它预设的模型
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 

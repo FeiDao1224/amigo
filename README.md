@@ -54,6 +54,14 @@ docker compose exec lingzai-license node admin.js issue --plan pro --devices 1 -
 
 详见 [license-server/README.md](license-server/README.md)。
 
+## 内容合规红线
+
+生成能力内置了合规护栏（[Sources/Lingzai/Compliance.swift](Sources/Lingzai/Compliance.swift)）：
+
+- **文本**：每次大模型请求都注入红线系统提示（优先级高于用户自定义人设），输出须符合中华人民共和国法律法规，拒绝涉政敏感 / 暴恐 / 色情 / 赌毒 / 违法犯罪 / 翻墙规避监管等内容。
+- **形象生成**：每次生图 prompt 追加版权 / 商标 / 肖像红线；对用户描述做前置关键词初筛，命中受保护 IP（迪士尼 / 宝可梦 / 三丽鸥等）或违法词直接拦下，只产出原创、非侵权形象。
+- 上传自有素材做形象时，UI 也会提示「请使用原创或你有权使用的素材」。
+
 ## 数据位置
 
 全部只存本机：`~/Library/Application Support/Amigo/`

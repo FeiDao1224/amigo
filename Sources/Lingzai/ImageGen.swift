@@ -16,10 +16,11 @@ enum ImageGenError: LocalizedError {
 
 enum ImageGen {
     /// 用 1~多张 reference 图 + prompt 做 image edit，返回 PNG 字节。
-    static func edit(baseUrl: String, apiKey: String, prompt: String,
+    static func edit(baseUrl: String, apiKey: String, prompt rawPrompt: String,
                      references: [Data], size: String = "1024x1024", quality: String = "medium") async throws -> Data {
         guard !baseUrl.isEmpty, !apiKey.isEmpty else { throw ImageGenError.noProvider }
         guard !references.isEmpty else { throw ImageGenError.decode }
+        let prompt = rawPrompt + "\n" + Compliance.imageClause   // 版权/法律红线：拼进每次生图
         let base = baseUrl.hasSuffix("/") ? String(baseUrl.dropLast()) : baseUrl
         guard let url = URL(string: base + "/images/edits") else { throw ImageGenError.decode }
         let dataURLs = references.map { "data:image/png;base64," + $0.base64EncodedString() }

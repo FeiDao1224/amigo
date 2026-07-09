@@ -165,6 +165,7 @@ final class AppState: ObservableObject {
     @MainActor
     func setCustomPetAI(images: [NSImage], anthropomorphize: Bool, pixelLevel: Double, description: String) async {
         guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else { customMsg = "先在「模型」页配一个模型"; return }
+        if let reason = Compliance.screenImagePrompt(description) { customMsg = reason; return }   // 版权/法律红线前置初筛
         let refs = Array(images.prefix(3)).compactMap { $0.pngData() }
         guard !refs.isEmpty else { customMsg = "先加一张图"; return }
         var prompt = "Turn the subject shown in the reference image(s) into ONE single cute pixel-art character mascot for a desktop pet. Front-facing, full body, standing upright, centered. Keep its recognizable colors, shape and features."
@@ -263,6 +264,7 @@ final class AppState: ObservableObject {
     @discardableResult
     func addCustomAction(title: String, desc: String) -> String {
         let d = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let reason = Compliance.screenImagePrompt(d + " " + title) { showToast(reason); return "" }   // 版权/法律红线前置初筛
         let prompt = d + "\n\nArrange the 4 frames in a 2x2 grid on a plain solid white background. Detailed 32-bit pixel art, exact same character design in every frame. CRITICAL FOR ANIMATION: same size, horizontally centered, feet on the SAME horizontal ground line in every frame so the frames loop cleanly. No text, no letters, no grid lines, no borders."
         let a = CustomAction(title: title.trimmingCharacters(in: .whitespaces).isEmpty ? "自定义动作" : title, prompt: prompt)
         config.customActions.append(a); persist()
