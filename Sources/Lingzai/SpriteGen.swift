@@ -11,8 +11,8 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
     var emoji: String {
         switch self { case .work: "💻"; case .phone: "📞"; case .think: "🤔"; case .idle: "🧍"; case .run: "🏃"; case .walk: "🚶" }
     }
-    var fps: Double {
-        switch self { case .work: 4; case .phone: 4; case .think: 3; case .idle: 3; case .run: 8; case .walk: 5 }
+    var fps: Double {   // 16 帧：提高帧率保持循环时长≈原来，播放更连贯（显示上限 20fps）
+        switch self { case .work: 16; case .phone: 16; case .think: 12; case .idle: 12; case .run: 20; case .walk: 18 }
     }
     private var motion: String {
         switch self {
@@ -31,8 +31,10 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
         }
     }
     var prompt: String {
-        motion + "\n\nArrange the 4 frames in a 2x2 grid on a plain solid white background. Detailed 32-bit pixel art, exact same character design in every frame. "
-        + "CRITICAL FOR ANIMATION: the character must be the SAME size and horizontally centered in every frame, with the feet resting on the SAME horizontal ground line, so the four frames line up perfectly when looped. "
+        motion + "\n\nRender this as a SMOOTH 16-frame animation loop arranged in a 4x4 grid (read left-to-right, top-to-bottom) on a plain solid white background. "
+        + "The key poses described above are the main beats — interpolate gentle in-between frames so the 16 frames play back as one fluid, seamless loop (frame 16 flows naturally back into frame 1). "
+        + "Detailed 32-bit pixel art, the EXACT same character design, colors and size in every one of the 16 cells. "
+        + "CRITICAL FOR ANIMATION: the character must be horizontally centered with feet resting on the SAME horizontal ground line in every cell, so all 16 frames line up perfectly when looped. "
         + "Do NOT draw any text, letters, numbers, labels, watermarks, grid lines, borders or frame dividers."
     }
 }
@@ -74,24 +76,28 @@ enum SpriteGen {
         }
     }
 
+    static let gridCols = 4, gridRows = 4, frameCount = 16   // 4×4 = 16 帧，动画更连贯
+
     private static func sliceRegisterSave(_ sheet: CGImage, character: String, action: String) throws -> Int {
-        let cw = sheet.width / 2, ch = sheet.height / 2
-        let rects = [CGRect(x: 0, y: 0, width: cw, height: ch), CGRect(x: cw, y: 0, width: cw, height: ch),
-                     CGRect(x: 0, y: ch, width: cw, height: ch), CGRect(x: cw, y: ch, width: cw, height: ch)]
+        let cw = sheet.width / gridCols, ch = sheet.height / gridRows
+        var rects: [CGRect] = []
+        for r in 0..<gridRows { for c in 0..<gridCols {   // 从左到右、从上到下读
+            rects.append(CGRect(x: c * cw, y: r * ch, width: cw, height: ch))
+        } }
         let cells = rects.compactMap { sheet.cropping(to: $0) }
-        guard cells.count == 4 else { throw SpriteGenError.decode }
+        guard cells.count == frameCount else { throw SpriteGenError.decode }
 
         let registered = register(cells.map { removeWhite($0) ?? $0 })
 
         let d = dir(character: character, action: action)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
-        for i in 0..<8 { try? FileManager.default.removeItem(at: d.appendingPathComponent("frame-\(i).png")) }
+        for i in 0..<64 { try? FileManager.default.removeItem(at: d.appendingPathComponent("frame-\(i).png")) }
         var n = 0
         for (i, img) in registered.enumerated() {
             guard let png = NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:]) else { continue }
             try png.write(to: d.appendingPathComponent("frame-\(i).png")); n += 1
         }
-        guard n == 4 else { throw SpriteGenError.decode }
+        guard n == frameCount else { throw SpriteGenError.decode }
         return n
     }
 
@@ -186,7 +192,7 @@ enum SpriteGen {
     /// 读某形象某动作已生成的帧
     static func loadFrames(character: String, action: String) -> [NSImage] {
         var imgs: [NSImage] = []
-        for i in 0..<8 {
+        for i in 0..<64 {   // 读到缺帧为止，兼容旧的 4 帧与新的 16 帧
             let u = dir(character: character, action: action).appendingPathComponent("frame-\(i).png")
             guard FileManager.default.fileExists(atPath: u.path), let img = NSImage(contentsOf: u) else { break }
             imgs.append(img)

@@ -260,18 +260,21 @@ final class AppState: ObservableObject {
         let id: String, title: String, emoji: String, prompt: String
         let fps: Double, builtin: Bool
     }
+    var builtinActions: [ActionDef] {   // 内置 6 个
+        PetAnimAction.allCases.map { ActionDef(id: $0.rawValue, title: $0.title, emoji: $0.emoji, prompt: $0.prompt, fps: $0.fps, builtin: true) }
+    }
     var allActions: [ActionDef] {
-        let b = PetAnimAction.allCases.map { ActionDef(id: $0.rawValue, title: $0.title, emoji: $0.emoji, prompt: $0.prompt, fps: $0.fps, builtin: true) }
-        let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", prompt: $0.prompt, fps: 4, builtin: false) }
-        return b + c
+        let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", prompt: $0.prompt, fps: 12, builtin: false) }
+        return builtinActions + c
     }
     func actionDef(_ id: String) -> ActionDef? { allActions.first { $0.id == id } }
 
     @discardableResult
     func addCustomAction(title: String, desc: String) -> String {
         let d = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+        if config.customActions.count >= 10 { showToast("动作最多 16 个（内置 6 + 自建 10），先删掉一些再加"); return "" }
         if let reason = Compliance.screenImagePrompt(d + " " + title) { showToast(reason); return "" }   // 版权/法律红线前置初筛
-        let prompt = d + "\n\nArrange the 4 frames in a 2x2 grid on a plain solid white background. Detailed 32-bit pixel art, exact same character design in every frame. CRITICAL FOR ANIMATION: same size, horizontally centered, feet on the SAME horizontal ground line in every frame so the frames loop cleanly. No text, no letters, no grid lines, no borders."
+        let prompt = d + "\n\nRender this as a smooth 16-frame animation loop in a 4x4 grid (read left-to-right, top-to-bottom) on a plain solid white background. Interpolate gentle in-between frames so the loop is fluid and seamless. Detailed 32-bit pixel art, the EXACT same character design, colors and size in every cell; horizontally centered with feet on the SAME horizontal ground line so all 16 frames line up. No text, no letters, no grid lines, no borders."
         let a = CustomAction(title: title.trimmingCharacters(in: .whitespaces).isEmpty ? "自定义动作" : title, prompt: prompt)
         config.customActions.append(a); persist()
         return a.id
@@ -306,12 +309,12 @@ final class AppState: ObservableObject {
 
     @Published var batchGenerating = false
     @Published var batchProgress = ""
-    /// 一键生成全部动作（含自建，串行）
+    /// 一键生成：只生成内置 6 个默认动作（自建动作各自单独生成）
     @MainActor
     func generateAllActions() async {
         guard !batchGenerating else { return }
         batchGenerating = true
-        let all = allActions
+        let all = builtinActions
         for (i, d) in all.enumerated() {
             batchProgress = "\(i + 1)/\(all.count) \(d.title)"
             await generateActionDef(d)

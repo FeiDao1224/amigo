@@ -225,7 +225,7 @@ struct SettingsView: View {
             SectionHeader("动作")
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("用当前形象作参考，AI 生成像素动作帧（直连你在「模型」页配置的服务）。动画按形象分别保存、换形象自动切换。点卡片＝设为默认播放。")
+                    Text("用当前形象作参考，AI 生成 16 帧像素动作（更连贯）。「一键生成」只做内置 6 个默认动作；自建动作在各自卡片上单独生成。最多 16 个（内置 6 + 自建 10）。动画按形象分别保存、换形象自动切换。点卡片＝设为默认播放。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     if !state.hasModel {
@@ -248,7 +248,7 @@ struct SettingsView: View {
                         .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.orange.opacity(0.28)))
                     }
                     HStack(spacing: 10) {
-                        Button(state.batchGenerating ? "生成中…" : "一键生成全部") {
+                        Button(state.batchGenerating ? "生成中…" : "一键生成默认 6 个动作") {
                             Task { await state.generateAllActions() }
                         }.buttonStyle(.borderedProminent).controlSize(.small)
                             .disabled(state.batchGenerating || !state.hasModel)

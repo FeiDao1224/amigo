@@ -306,6 +306,22 @@ struct CustomPetCard: View {
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                // 生成选项：直接放在这里，不用先加图也能设
+                if hasModel {
+                    Toggle("拟人化（没手脚的自动加脸 + 四肢，好做动作）", isOn: $anthro)
+                        .toggleStyle(.checkbox).font(.system(size: 11))
+                }
+                HStack(spacing: 8) {
+                    Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("细腻").font(.caption2).foregroundStyle(.secondary)
+                    Slider(value: $level, in: 0...1) { editing in if !editing && !hasModel { rebuild() } }
+                    Text("块状").font(.caption2).foregroundStyle(.secondary)
+                    if !hasModel {
+                        Toggle("抠背景", isOn: $cutout).toggleStyle(.checkbox).font(.system(size: 11))
+                            .onChange(of: cutout) { _ in rebuild() }
+                    }
+                }
+
                 HStack(spacing: 10) {
                     ForEach(Array(images.enumerated()), id: \.offset) { idx, img in
                         ZStack(alignment: .topTrailing) {
@@ -337,14 +353,6 @@ struct CustomPetCard: View {
 
                 if !images.isEmpty {
                     if hasModel {
-                        Toggle("拟人化（没手脚的自动加脸 + 四肢，好做动作）", isOn: $anthro)
-                            .toggleStyle(.checkbox).font(.system(size: 11))
-                        HStack(spacing: 8) {
-                            Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
-                            Text("细腻").font(.caption2).foregroundStyle(.secondary)
-                            Slider(value: $level, in: 0...1)
-                            Text("块状").font(.caption2).foregroundStyle(.secondary)
-                        }
                         TextField("补充描述（可选）：保留它的表情 / 花纹更明显 / 戴顶帽子…", text: $desc)
                             .textFieldStyle(.roundedBorder).font(.system(size: 12))
                         HStack {
@@ -359,12 +367,6 @@ struct CustomPetCard: View {
                             }.buttonStyle(.borderedProminent).disabled(state.customBusy)
                         }
                     } else {
-                        HStack(spacing: 12) {
-                            Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
-                            Slider(value: $level, in: 0...1) { e in if !e { rebuild() } }
-                            Toggle("自动抠背景", isOn: $cutout).toggleStyle(.checkbox)
-                                .font(.system(size: 11)).onChange(of: cutout) { _ in rebuild() }
-                        }
                         HStack {
                             Text("本机像素化，图片不上传（配模型后可 AI 精修 + 拟人化 + 描述）。").font(.system(size: 10)).foregroundStyle(.secondary)
                             Spacer()
