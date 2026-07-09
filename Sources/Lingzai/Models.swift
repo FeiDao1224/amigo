@@ -33,11 +33,12 @@ struct Config: Codable {
     var customActions: [CustomAction] = []      // 用户自建动作
     var personas: [String: CardData] = [:]      // 每个形象一套性格/人设
     var clickLeft: String = "speak"             // 左键点击行为
-    var clickDouble: String = "none"            // 双击行为
+    var clickDouble: String = "chat"            // 双击行为：默认打开对话输入框
     var clickLong: String = "chat"              // 长按行为
     var clickRight: String = "menu"             // 右键行为
     var agentMonitor: Bool = true               // 监控 Claude Code/Codex 等助手状态并冒泡
     var onboarded: Bool = false                 // 是否过了首启引导
+    var seededDoubleClickChat: Bool = false     // 一次性把旧默认(双击=无)迁到"双击=对话"
 }
 
 /// 用户自建的形象（每个一张 pets/<id>.png + generated/<id>/... 动作帧）
@@ -63,8 +64,16 @@ enum ConfigStore {
         return base.appendingPathComponent("config.json")
     }
     static func load() -> Config {
-        guard let data = try? Data(contentsOf: url),
-              let cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
+        guard let data = try? Data(contentsOf: url) else { return Config() }
+        if let cfg = try? JSONDecoder().decode(Config.self, from: data) { return cfg }
+        // 容错：旧配置缺新增字段会导致整体解码失败。把磁盘值合并到「默认配置的 JSON」上再解，
+        // 缺的字段用默认值补齐，已有值(含 API Key / 形象 / 性格)全部保留，避免升级丢配置。
+        guard let defData = try? JSONEncoder().encode(Config()),
+              var base = try? JSONSerialization.jsonObject(with: defData) as? [String: Any],
+              let disk = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return Config() }
+        for (k, v) in disk { base[k] = v }
+        guard let merged = try? JSONSerialization.data(withJSONObject: base),
+              let cfg = try? JSONDecoder().decode(Config.self, from: merged) else { return Config() }
         return cfg
     }
     static func save(_ cfg: Config) {

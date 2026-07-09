@@ -10,7 +10,6 @@ struct ModelPane: View {
     @State private var fBase = ""
     @State private var fModel = ""
     @State private var fKey = ""
-    @State private var presetSel = ""
     @State private var importText = ""
     @State private var importMsg = ""
     @State private var testMsg = ""
@@ -25,7 +24,7 @@ struct ModelPane: View {
             // 已保存
             if state.config.providers.isEmpty {
                 GroupCard {
-                    GRow(title: "还没有模型配置", subtitle: "下面「模型选择」选一个补上 Key，或手动填端点") { EmptyView() }
+                    GRow(title: "还没有模型配置", subtitle: "在下面手动填 API 端点 + Key（+ 模型）") { EmptyView() }
                 }
             } else {
                 GroupCard {
@@ -48,18 +47,10 @@ struct ModelPane: View {
 
             // 新增 / 编辑
             SectionHeader(editingId == nil ? "新增配置" : "编辑配置")
-            Text("填 API 端点 + Key + 模型；「模型选择」可一键带出常见服务的端点。")
+            Text("填 API 端点 + Key + 模型（OpenAI 兼容端点 / 中转站均可）。Key 只存在本地。")
                 .font(.caption).foregroundStyle(.secondary)
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Picker("模型选择", selection: $presetSel) {
-                        Text("— 选一个常见服务，或手动往下填 —").tag("")
-                        ForEach(PRESETS.filter { $0.key != "relay" }, id: \.key) { Text($0.name).tag($0.key) }
-                    }
-                    .onChange(of: presetSel) { key in
-                        if let p = PRESETS.first(where: { $0.key == key }) { fName = p.name; fBase = p.baseUrl; fModel = p.model }
-                    }
-
                     TextField("API 端点 · Base URL（https://…/v1）", text: $fBase).textFieldStyle(.roundedBorder)
                     SecureField("API Key（仅存本地）", text: $fKey).textFieldStyle(.roundedBorder)
 
@@ -97,7 +88,7 @@ struct ModelPane: View {
     }
 
     private func load(_ p: Provider) { editingId = p.id; fName = p.name; fBase = p.baseUrl; fModel = p.model; fKey = p.apiKey }
-    private func clear() { editingId = nil; fName = ""; fBase = ""; fModel = ""; fKey = ""; presetSel = "" }
+    private func clear() { editingId = nil; fName = ""; fBase = ""; fModel = ""; fKey = "" }
     private func deriveName(_ base: String) -> String {
         if let h = URLComponents(string: base)?.host, !h.isEmpty { return h }
         return "中转站"

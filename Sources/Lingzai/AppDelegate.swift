@@ -130,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = NSImage(systemSymbolName: "pawprint.fill", accessibilityDescription: "Amigo")
         let menu = NSMenu()
-        let chatItem = NSMenuItem(title: "和阿豆聊聊…", action: #selector(openChat), keyEquivalent: "")
+        let chatItem = NSMenuItem(title: "聊天窗口", action: #selector(openChat), keyEquivalent: "")
         let open = NSMenuItem(title: "打开设置…", action: #selector(openSettings), keyEquivalent: ",")
         let toggle = NSMenuItem(title: "显示 / 隐藏宠物", action: #selector(togglePet), keyEquivalent: "")
         let quit = NSMenuItem(title: "退出 Amigo", action: #selector(quitApp), keyEquivalent: "q")
@@ -267,6 +267,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // 交互派发：把某触发映射到配置里的行为
     private func dispatchClick(_ trigger: String) {
+        // 输入框开着时，点一下宠物（单击/双击）即退出对话
+        if runtime.chatting, trigger == "left" || trigger == "double" { runtime.chatting = false; return }
         switch trigger {
         case "left":   executeClick(state.config.clickLeft)
         case "double": executeClick(state.config.clickDouble)
@@ -358,7 +360,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         w.setContentSize(host.fittingSize)
         w.center()
         onboardingWindow = w
-        NSApp.setActivationPolicy(.regular)
+        NSApp.setActivationPolicy(state.config.dockVisible ? .regular : .accessory)   // Dock 关闭时首启不冒 Dock 图标
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -375,8 +377,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 460),
                              styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
-            w.title = "和阿豆聊聊"
+            w.title = "聊天窗口"
             w.titlebarAppearsTransparent = true
+            w.isOpaque = false                 // 毛玻璃
+            w.backgroundColor = .clear
+            w.isMovableByWindowBackground = true
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.contentView = NSHostingView(rootView: ChatView(session: chat))

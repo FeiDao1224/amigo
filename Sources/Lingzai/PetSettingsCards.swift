@@ -167,13 +167,18 @@ struct CharacterCard: View {
 struct CharacterPicker: View {
     @ObservedObject var state: AppState
     var onCustom: () -> Void = {}
-    // 内置(香蕉猫=默认 + 看表鱼) + 用户自定义；正在使用的形象排到最前
-    private var builtins: [(String, String, Bool)] {
-        [("banana_cat", "香蕉猫", false), ("anxious_fish", "看表鱼", false)]
+    // 显示名：性格设置里给了名字就用名字，否则用形象默认名
+    private func displayName(_ id: String, _ fallback: String) -> String {
+        if let n = state.config.personas[id]?.name, !n.trimmingCharacters(in: .whitespaces).isEmpty { return n }
+        return fallback
     }
+    // 内置(香蕉猫=默认 + 看表鱼) + 用户自定义；正在使用的形象排到最前
     private var chars: [(String, String, Bool)] {   // (id, 名称, 可删?)
-        var a = builtins
-        a += state.config.customPets.map { ($0.id, $0.name, true) }
+        var a: [(String, String, Bool)] = [
+            ("banana_cat", displayName("banana_cat", "香蕉猫"), false),
+            ("anxious_fish", displayName("anxious_fish", "看表鱼"), false),
+        ]
+        a += state.config.customPets.map { ($0.id, displayName($0.id, $0.name), true) }
         if let idx = a.firstIndex(where: { $0.0 == state.config.character }), idx > 0 {
             let cur = a.remove(at: idx); a.insert(cur, at: 0)   // 当前形象置顶
         }
@@ -278,7 +283,7 @@ struct CustomPetCard: View {
     var onUpgrade: () -> Void = {}
     @State private var images: [NSImage] = []
     @State private var preview: NSImage?
-    @State private var level: Double = 0.5
+    @State private var level: Double = 0.3    // 偏细腻：更能保留参考图的神态/花纹
     @State private var cutout = true
     @State private var anthro = true
     @State private var desc = ""
@@ -292,7 +297,7 @@ struct CustomPetCard: View {
         GroupCard {
             VStack(alignment: .leading, spacing: 10) {
                 Text(hasModel
-                     ? "已配置模型 → 用 AI 生成更精致的像素形象；最多加 3 张参考图会更像。非生物会自动拟人化、加四肢，好做动作。"
+                     ? "已配置模型 → AI 精修。会尽量还原参考图的神态 / 花纹 / 表情，做到「像但不照搬」；多角度加 2–3 张更传神。像素程度调「细腻」更还原。"
                      : "未配置模型 → 本地像素化。去「模型」页配置后，这里会自动改用 AI 生成，效果更好。")
                     .font(.system(size: 11)).foregroundStyle(hasModel ? .green : .secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -340,7 +345,7 @@ struct CustomPetCard: View {
                             Slider(value: $level, in: 0...1)
                             Text("块状").font(.caption2).foregroundStyle(.secondary)
                         }
-                        TextField("补充描述（可选）：戴顶帽子 / 蓝色调 / 开心表情…", text: $desc)
+                        TextField("补充描述（可选）：保留它的表情 / 花纹更明显 / 戴顶帽子…", text: $desc)
                             .textFieldStyle(.roundedBorder).font(.system(size: 12))
                         HStack {
                             if !state.customMsg.isEmpty {

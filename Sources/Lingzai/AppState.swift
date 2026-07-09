@@ -24,6 +24,10 @@ final class AppState: ObservableObject {
         config = ConfigStore.load(); memories = MemoryStore.load(); tasks = TodoStore.load()
         if config.deviceId.isEmpty { config.deviceId = UUID().uuidString }
         if config.installedAt == nil { config.installedAt = Date().timeIntervalSince1970 }
+        if !config.seededDoubleClickChat {            // 一次性：旧默认"双击=无" → "双击=打开对话"
+            if config.clickDouble == "none" { config.clickDouble = "chat" }
+            config.seededDoubleClickChat = true
+        }
         migrateCharacters()
         ConfigStore.save(config)
         licensed = config.licenseActivated && !licenseExpired
@@ -168,7 +172,9 @@ final class AppState: ObservableObject {
         if let reason = Compliance.screenImagePrompt(description) { customMsg = reason; return }   // 版权/法律红线前置初筛
         let refs = Array(images.prefix(3)).compactMap { $0.pngData() }
         guard !refs.isEmpty else { customMsg = "先加一张图"; return }
-        var prompt = "Turn the subject shown in the reference image(s) into ONE single cute pixel-art character mascot for a desktop pet. Front-facing, full body, standing upright, centered. Keep its recognizable colors, shape and features."
+        var prompt = "Recreate the SPECIFIC character shown in the reference image(s) as one single desktop-pet mascot — a faithful, recognizable likeness of THIS exact character, NOT a generic version of its species. "
+        prompt += "Preserve its identity precisely: the exact colors and the shape & placement of its markings / patches / patterns, its facial features (eye shape, eyebrows, nose, mouth, cheek blush, ears / horns), its head-to-body proportions, and above all its expression and mood — so anyone seeing the reference instantly recognizes it as the same character. "
+        prompt += "Front-facing, full body, standing upright, centered. Stylize it into a cute mascot but keep the likeness: it should read as the same character — similar in spirit, not a pixel-perfect photo copy. "
         if anthropomorphize {
             prompt += " If the subject is an object / food / logo / plant / anything WITHOUT a body or limbs, ANTHROPOMORPHIZE it: give it a simple cute face, two small cartoon arms and two legs so it can stand, walk and be animated."
         } else {

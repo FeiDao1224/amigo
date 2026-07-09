@@ -26,7 +26,7 @@ struct PetView: View {
             Group {
                 if rt.chatting {
                     HStack(spacing: 6) {
-                        TextField("跟阿豆说…", text: $chatInput)
+                        TextField("", text: $chatInput)
                             .textFieldStyle(.plain).font(.system(size: 13))
                             .focused($inputFocused).frame(width: 132)
                             .onSubmit(send)

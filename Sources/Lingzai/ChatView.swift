@@ -11,7 +11,7 @@ struct ChatView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         if session.messages.isEmpty {
-                            Text("跟阿豆随便聊点什么～它会慢慢记住你。也可以把文件拖进来让它帮你看。")
+                            Text("随便聊点什么～它会慢慢记住你。也可以把文件拖进来让它帮你看。")
                                 .font(.caption).foregroundStyle(.secondary).padding(.top, 10)
                         }
                         ForEach(session.messages) { m in
@@ -23,14 +23,14 @@ struct ChatView: View {
                                     .padding(.horizontal, 11).padding(.vertical, 7)
                                     .background(
                                         m.role == "user"
-                                            ? AnyShapeStyle(Color.accentColor.opacity(0.18))
-                                            : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)),
+                                            ? AnyShapeStyle(Color.accentColor.opacity(0.22))
+                                            : AnyShapeStyle(.regularMaterial),
                                         in: RoundedRectangle(cornerRadius: 12))
                                 if m.role != "user" { Spacer(minLength: 44) }
                             }.id(m.id)
                         }
                         if session.busy {
-                            Text("阿豆在想…").font(.caption).foregroundStyle(.secondary)
+                            Text("在想…").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     .padding(12)
@@ -43,7 +43,7 @@ struct ChatView: View {
             }
             Divider()
             HStack(spacing: 8) {
-                TextField("跟阿豆说点什么…", text: $input)
+                TextField("说点什么…", text: $input)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(sendIt)
                 Button("发送", action: sendIt)
@@ -53,6 +53,7 @@ struct ChatView: View {
             .padding(10)
         }
         .frame(minWidth: 340, minHeight: 400)
+        .background(VisualEffectView().ignoresSafeArea())   // 毛玻璃
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard let p = providers.first else { return false }
             p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
