@@ -55,7 +55,7 @@ struct CustomAction: Codable, Identifiable, Hashable {
     var prompt: String
 }
 
-/// 配置持久化：~/Library/Application Support/Lingzai/config.json
+/// 配置持久化：~/Library/Application Support/Amigo/config.json
 enum ConfigStore {
     static var url: URL {
         let base = FileManager.default
@@ -83,7 +83,7 @@ enum ConfigStore {
 }
 
 extension Provider {
-    /// 从分享内容一键导入：支持 JSON，或带 query 的 URL（lingzai:// / ccswitch:// / https 等）
+    /// 从分享内容一键导入：支持 JSON，或带 query 的 URL（amigo:// / ccswitch:// / https 等）
     static func fromImport(_ raw: String) -> Provider? {
         let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.isEmpty { return nil }
@@ -125,17 +125,6 @@ extension Provider {
         return Provider(name: name, baseUrl: base, model: model, apiKey: key)
     }
 }
-
-/// 预设：国内主流 + 中转站（均 OpenAI 兼容端点）
-struct Preset { let key: String; let name: String; let baseUrl: String; let model: String }
-let PRESETS: [Preset] = [
-    .init(key: "zhipu",       name: "智谱 GLM",      baseUrl: "https://open.bigmodel.cn/api/paas/v4",              model: "glm-4-flash"),
-    .init(key: "deepseek",    name: "DeepSeek",      baseUrl: "https://api.deepseek.com/v1",                       model: "deepseek-chat"),
-    .init(key: "kimi",        name: "Kimi 月之暗面",  baseUrl: "https://api.moonshot.cn/v1",                        model: "moonshot-v1-8k"),
-    .init(key: "qwen",        name: "通义千问",      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus"),
-    .init(key: "siliconflow", name: "硅基流动",      baseUrl: "https://api.siliconflow.cn/v1",                     model: "deepseek-ai/DeepSeek-V3"),
-    .init(key: "relay",       name: "中转站",        baseUrl: "",                                                  model: ""),
-]
 
 /// 宠物性格：名字 + 自由文本人设（按形象持久化）
 struct CardData: Codable, Equatable {

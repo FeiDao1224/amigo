@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Amigo",
-            path: "Sources/Lingzai"
+            path: "Sources/Amigo"
         )
     ]
 )

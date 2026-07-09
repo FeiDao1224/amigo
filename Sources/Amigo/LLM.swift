@@ -40,6 +40,6 @@ enum LLM {
     }
 
     private static func err(_ m: String) -> NSError {
-        NSError(domain: "lingzai", code: 1, userInfo: [NSLocalizedDescriptionKey: m])
+        NSError(domain: "amigo", code: 1, userInfo: [NSLocalizedDescriptionKey: m])
     }
 }

@@ -1,4 +1,4 @@
-// 灵崽激活服务（零依赖，Node 自带 http + 本地 JSON 存储）
+// Amigo激活服务（零依赖，Node 自带 http + 本地 JSON 存储）
 // 跑：node server.js   （默认 :8787，可 PORT=xxxx node server.js）
 // 发码：node admin.js issue --plan pro --devices 1 --days 365
 const http = require("http");
@@ -44,4 +44,4 @@ const server = http.createServer(async (req, res) => {
   return json(res, 404, { ok: false, error: "not found" });
 });
 
-server.listen(PORT, () => console.log(`灵崽激活服务已启动 :${PORT}`));
+server.listen(PORT, () => console.log(`Amigo激活服务已启动 :${PORT}`));

@@ -24,7 +24,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var onboardingWindow: NSWindow?
     private var engine: BehaviorEngine?
     private var agentBridge: AgentBridge?
-    private var focusTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         PetImages.installDefaults()   // 首启：内置默认形象拷到本机（新用户不空白）
@@ -61,8 +60,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         chat.onInferred = { [weak state] items in state?.addInferred(items) }
         chat.isStealth = { [weak state] in state?.config.stealth ?? false }
 
-        state.onStartFocus = { [weak self] title in self?.startFocus(title) }
-        state.onTaskDone = { [weak self] title in self?.runtime.showBubble("搞定《\(title)》！你今天是真的推进了 👏") }
 
         setupStatusItem()
         setupPetPanel()
@@ -78,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task { await state.revalidate() }   // 启动向激活服务器复验（可吊销/到期）
 
         let e = BehaviorEngine(runtime: runtime)
-        e.isEnabled = { [weak self] in (self?.state.entitled ?? false) && (self?.state.config.proactive ?? false) && !(self?.state.config.stealth ?? false) && !(self?.state.focusing ?? false) }
+        e.isEnabled = { [weak self] in (self?.state.entitled ?? false) && (self?.state.config.proactive ?? false) && !(self?.state.config.stealth ?? false) }
         e.isPetVisible = { [weak self] in self?.petPanel?.isVisible ?? false }
         e.start()
         engine = e
@@ -93,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    // 深链导入（打包成 .app 后，点击 lingzai:// / 中转站分享链接会走这里）
+    // 深链导入（打包成 .app 后，点击 amigo:// / 中转站分享链接会走这里）
     func application(_ application: NSApplication, open urls: [URL]) {
         for u in urls { _ = state.importProvider(from: u.absoluteString) }
         openSettings()
@@ -395,19 +392,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         chatWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-    }
-
-    // 陪做模式：安静陪你 25 分钟，期间不打扰，到点问一句
-    private func startFocus(_ title: String) {
-        state.focusing = true
-        runtime.showBubble("好，陪你做《\(title)》—— 25 分钟，我在，专注就好。")
-        focusTimer?.invalidate()
-        focusTimer = Timer.scheduledTimer(withTimeInterval: 25 * 60, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.state.focusing = false
-                self?.runtime.showBubble("25 分钟到啦，《\(title)》推进得咋样？继续、歇会儿，还是我帮你理理刚才的？")
-            }
-        }
     }
 
     @objc private func togglePet() {

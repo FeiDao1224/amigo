@@ -1,4 +1,4 @@
-# 灵崽激活服务（自托管）
+# Amigo激活服务（自托管）
 
 市面常见做法的最小版：**试用期 + 激活码 + 设备绑定 + 可吊销**，后台在你自己手里。零依赖，只用 Node 自带模块，数据存本地 `licenses.json`。
 
@@ -13,9 +13,9 @@ docker compose up -d --build          # 起服务，:8787，licenses.json 存在
 ## 发激活码（卖之前生成，发给买家）
 Docker 里发码（数据落在挂载卷 /data）：
 ```bash
-docker compose exec lingzai-license node admin.js issue --plan pro --devices 1 --days 365
-docker compose exec lingzai-license node admin.js list
-docker compose exec lingzai-license node admin.js revoke LZ-XXXX-XXXX-XXXX-XXXX
+docker compose exec amigo-license node admin.js issue --plan pro --devices 1 --days 365
+docker compose exec amigo-license node admin.js list
+docker compose exec amigo-license node admin.js revoke LZ-XXXX-XXXX-XXXX-XXXX
 ```
 不用 Docker：
 ```bash
@@ -28,7 +28,7 @@ node admin.js revoke LZ-XXXX-XXXX-XXXX-XXXX              # 退款/盗用→吊�
 - `devices`=该码最多能激活几台机器（超了会拒绝）。
 
 ## App 怎么连
-把 App 里 `Sources/Lingzai/License.swift` 的 `serverBase` 改成你的服务器地址（本机测试用 `http://localhost:8787`，上线换成 `https://你的域名`）。
+把 App 里 `Sources/Amigo/License.swift` 的 `serverBase` 改成你的服务器地址（本机测试用 `http://localhost:8787`，上线换成 `https://你的域名`）。
 
 ## 接口
 - `POST /api/activate {code, device}` → `{ok, plan, expiresAt}`；绑定设备，超期/超设备数/吊销都会 `ok:false + error`。

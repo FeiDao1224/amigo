@@ -1,4 +1,4 @@
-# 灵崽激活服务（零依赖，Node 自带模块）
+# Amigo激活服务（零依赖，Node 自带模块）
 FROM node:20-alpine
 WORKDIR /app
 COPY server.js admin.js ./

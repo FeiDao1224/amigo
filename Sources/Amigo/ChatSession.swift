@@ -6,7 +6,7 @@ struct ChatMsg: Identifiable, Equatable, Codable {
     let content: String
 }
 
-/// 聊天记录持久化：~/Library/Application Support/Lingzai/chat.json（保留最近 200 条）
+/// 聊天记录持久化：~/Library/Application Support/Amigo/chat.json（保留最近 200 条）
 enum ChatStore {
     static var url: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -71,7 +71,7 @@ final class ChatSession: ObservableObject {
                 let m = "（出错了：\(error.localizedDescription)）"
                 messages.append(ChatMsg(role: "assistant", content: m))
                 onReply(m)                   // 报错也显示到气泡
-                NSLog("Lingzai chat error: \(error.localizedDescription)")
+                NSLog("Amigo chat error: \(error.localizedDescription)")
             }
             busy = false
         }

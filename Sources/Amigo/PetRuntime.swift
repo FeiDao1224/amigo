@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-enum PetState { case idle, talk, happy, shocked, bored, sleep, dragged }
+enum PetState { case idle, talk, dragged }
 
 /// 高频动画状态：只被宠物窗观察，不连累设置窗
 @MainActor
@@ -100,7 +100,7 @@ final class PetRuntime: ObservableObject {
                 showBubble(reply)
             } catch {
                 showBubble("（脑子卡壳了…）")
-                NSLog("Lingzai LLM error: \(error.localizedDescription)")
+                NSLog("Amigo LLM error: \(error.localizedDescription)")
             }
         }
     }

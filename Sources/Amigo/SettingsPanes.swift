@@ -10,8 +10,6 @@ struct ModelPane: View {
     @State private var fBase = ""
     @State private var fModel = ""
     @State private var fKey = ""
-    @State private var importText = ""
-    @State private var importMsg = ""
     @State private var testMsg = ""
     @State private var testing = false
 

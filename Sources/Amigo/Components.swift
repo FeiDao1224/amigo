@@ -29,16 +29,6 @@ struct PetMotion: ViewModifier {
         case .talk:
             dy = sin(t * 10) * 2.6
             sy = 1 + sin(t * 10) * 0.03
-        case .happy:
-            dy = -abs(sin(t * 9)) * 11
-            sy = 1 + abs(sin(t * 9)) * 0.06
-        case .shocked:
-            dx = sin(t * 42) * 4
-            sx = 1.05; sy = 1.05
-        case .bored:
-            rot = 6; dy = 3
-        case .sleep:
-            sy = 1 + sin(t * 1.0) * 0.03
         case .dragged:
             rot = 7
         }

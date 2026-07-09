@@ -1,6 +1,6 @@
 import AppKit
 
-/// 角色图加载：从 ~/Library/Application Support/Lingzai/pets/<name>.png 读透明 PNG
+/// 角色图加载：从 ~/Library/Application Support/Amigo/pets/<name>.png 读透明 PNG
 enum PetImages {
     static var dir: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!

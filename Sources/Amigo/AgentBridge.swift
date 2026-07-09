@@ -1,7 +1,7 @@
 import Foundation
 
 /// 助手监控（借鉴 ping-island 的 hook 桥接）：Claude Code / Codex 等的 hook 把状态写进
-/// ~/Library/Application Support/Lingzai/agents/<agent>.json，桌宠盯着它 → 用冒泡告诉你。
+/// ~/Library/Application Support/Amigo/agents/<agent>.json，桌宠盯着它 → 用冒泡告诉你。
 struct AgentStatus: Codable {
     let agent: String
     let state: String          // working / attention / done / error / limit
@@ -75,7 +75,7 @@ final class AgentBridge {
         #!/bin/bash
         # Amigo · 助手状态桥：AI 助手的 hook 调它，把状态喂给桌宠
         STATE="${1:-working}"; AGENT="${2:-Claude Code}"
-        DIR="$HOME/Library/Application Support/Lingzai/agents"; mkdir -p "$DIR"
+        DIR="$HOME/Library/Application Support/Amigo/agents"; mkdir -p "$DIR"
         IN="$(cat 2>/dev/null)"
         META="$(printf '%s' "$IN" | /usr/bin/python3 -c 'import sys,json
         try:

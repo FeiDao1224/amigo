@@ -10,7 +10,7 @@ struct Memory: Codable, Identifiable, Equatable {
     var createdAt: Date = Date()
 }
 
-/// 记忆持久化：~/Library/Application Support/Lingzai/memories.json
+/// 记忆持久化：~/Library/Application Support/Amigo/memories.json
 enum MemoryStore {
     static var url: URL {
         let base = FileManager.default

@@ -5,8 +5,6 @@ import AppKit
 final class AppState: ObservableObject {
     @Published var config: Config
     @Published var memories: [Memory] = []
-    @Published var tasks: [TodoItem] = []
-    @Published var focusing = false               // 陪做模式中
     @Published var licensed = false               // 已激活 Pro
     @Published var toast = ""                      // 顶部通知(错误等)
     private var toastSeq = 0
@@ -16,12 +14,9 @@ final class AppState: ObservableObject {
             if self?.toastSeq == seq { self?.toast = "" }
         }
     }
-    var onStartFocus: ((String) -> Void)?
-    var onTaskDone: ((String) -> Void)?
-
     init() {
         AppState.migrateDataDir()          // 改名 Amigo：把旧 Lingzai 数据目录整体搬过来（一次性、原子）
-        config = ConfigStore.load(); memories = MemoryStore.load(); tasks = TodoStore.load()
+        config = ConfigStore.load(); memories = MemoryStore.load()
         if config.deviceId.isEmpty { config.deviceId = UUID().uuidString }
         if config.installedAt == nil { config.installedAt = Date().timeIntervalSince1970 }
         if !config.seededDoubleClickChat {            // 一次性：旧默认"双击=无" → "双击=打开对话"
@@ -218,7 +213,7 @@ final class AppState: ObservableObject {
         try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
         NSWorkspace.shared.activateFileViewerSelecting([dataDir])
     }
-    /// 导出"关于你"的数据（记忆 / 任务）到你选的文件夹；不含 API Key
+    /// 导出"关于你"的数据（记忆）到你选的文件夹；不含 API Key
     @discardableResult
     func exportData() -> Bool {
         let panel = NSOpenPanel()
@@ -228,7 +223,7 @@ final class AppState: ObservableObject {
         let fm = FileManager.default
         let out = dest.appendingPathComponent("Amigo数据备份", isDirectory: true)
         try? fm.createDirectory(at: out, withIntermediateDirectories: true)
-        for name in ["memories.json", "todos.json"] {
+        for name in ["memories.json"] {
             let src = dataDir.appendingPathComponent(name)
             guard fm.fileExists(atPath: src.path) else { continue }
             let dst = out.appendingPathComponent(name)
@@ -239,12 +234,12 @@ final class AppState: ObservableObject {
     }
     /// 忘记我：只清记忆，保留模型与性格
     func forgetMe() { clearMemories() }
-    /// 清空全部数据：记忆 / 任务 / 自定义形象 / 性格（模型 Key 在「模型」页单独管理）
+    /// 清空全部数据：记忆 / 自定义形象 / 性格（模型 Key 在「模型」页单独管理）
     func wipeAllData() {
         let fm = FileManager.default
-        for name in ["memories.json", "todos.json"] { try? fm.removeItem(at: dataDir.appendingPathComponent(name)) }
+        try? fm.removeItem(at: dataDir.appendingPathComponent("memories.json"))
         try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
-        memories = []; tasks = []
+        memories = []
         config.personas = [:]; config.customActions = []; config.customPets = []
         config.character = "banana_cat"; persist()
         PetImages.installDefaults()          // 恢复内置形象，避免清空后空白
@@ -267,7 +262,6 @@ final class AppState: ObservableObject {
         let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", prompt: $0.prompt, fps: 12, builtin: false) }
         return builtinActions + c
     }
-    func actionDef(_ id: String) -> ActionDef? { allActions.first { $0.id == id } }
 
     @discardableResult
     func addCustomAction(title: String, desc: String) -> String {
@@ -377,38 +371,6 @@ final class AppState: ObservableObject {
             + longs.prefix(30).map { "- [\($0.category)] \($0.content)" }.joined(separator: "\n")
     }
 
-    // MARK: 会思考的 todo
-    private func saveTasks() { TodoStore.save(tasks) }
-    func addTask(_ title: String) {
-        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return }
-        tasks.insert(TodoItem(title: t), at: 0); saveTasks()
-    }
-    func deleteTask(_ id: String) { tasks.removeAll { $0.id == id }; saveTasks() }
-    func completeTask(_ id: String) {
-        guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
-        tasks[i].done = true; saveTasks()
-        onTaskDone?(tasks[i].title)
-    }
-    func startFocus(_ title: String) { onStartFocus?(title) }
-
-    /// 自动拆任务：LLM 拆成小步骤 + 最小下一步
-    @MainActor
-    func breakdown(_ id: String) async {
-        guard let p = activeProvider(), !p.apiKey.isEmpty,
-              let i0 = tasks.firstIndex(where: { $0.id == id }) else { return }
-        let title = tasks[i0].title
-        let sys = "把任务拆成 3-6 个具体、可执行的小步骤，并给出'现在马上就能做的最小下一步'。只输出 JSON：{\"steps\":[\"步骤\"],\"next\":\"最小下一步\"}。步骤要小到让人不焦虑，next 要具体到 5 分钟内能开始。"
-        guard let reply = try? await LLM.chat(provider: p, system: sys, user: "任务：\(title)"),
-              let s = reply.firstIndex(of: "{"), let e = reply.lastIndex(of: "}"),
-              let data = String(reply[s...e]).data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-        let steps = (obj["steps"] as? [Any])?.compactMap { $0 as? String } ?? []
-        let next = obj["next"] as? String ?? ""
-        if let i = tasks.firstIndex(where: { $0.id == id }) {
-            tasks[i].steps = steps; tasks[i].next = next; saveTasks()
-        }
-    }
     func setPetPosition(_ p: CGPoint) { config.petX = Double(p.x); config.petY = Double(p.y); persist() }
     func petOrigin() -> CGPoint? {
         if let x = config.petX, let y = config.petY { return CGPoint(x: x, y: y) }
@@ -418,7 +380,6 @@ final class AppState: ObservableObject {
     // MARK: 性格（每个形象一套人设）
     func currentCard() -> CardData { config.personas[config.character] ?? .builtinDefault(for: config.character) }
     func setCard(_ c: CardData) { config.personas[config.character] = c; persist() }
-    func resetCard() { config.personas[config.character] = nil; persist() }
 
     func setDockVisible(_ v: Bool) {
         config.dockVisible = v; persist()

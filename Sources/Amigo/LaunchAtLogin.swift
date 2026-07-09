@@ -2,7 +2,7 @@ import Foundation
 
 /// 开机自启：写/删 ~/Library/LaunchAgents 里的 LaunchAgent plist
 enum LaunchAtLogin {
-    static let label = "com.lingzai.dev"
+    static let label = "com.amigo.dev"
 
     static var plistURL: URL {
         FileManager.default.homeDirectoryForCurrentUser

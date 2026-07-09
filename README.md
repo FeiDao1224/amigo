@@ -7,7 +7,7 @@
 - 行为驱动：久坐 / 熬夜 / 拖动 / 打开软件 → 自动切动作、主动冒泡
 - 默认免费；激活码体系已内置（自托管、可选，默认关闭）
 
-> 说明：仓库文件夹与源码目录仍叫 `lingzai-mac` / `Sources/Lingzai`（历史原因，纯内部路径），**产品名一律 Amigo**（App、Bundle、数据目录都是 Amigo）。
+> 说明：产品 / App / Bundle(`com.amigo.app`) / 数据目录 / 源码目录(`Sources/Amigo`) 全部统一为 **Amigo**。
 
 ---
 
@@ -40,7 +40,7 @@ bash tools/package-app.sh          # 产出 dist/Amigo.app
 
 ## 激活服务（可选，默认免费）
 
-默认发布不带激活码：`Sources/Lingzai/License.swift` 里 `enforced = false`，人人免费用。
+默认发布不带激活码：`Sources/Amigo/License.swift` 里 `enforced = false`，人人免费用。
 
 要开收费：
 1. `License.enforced = true`
@@ -49,14 +49,14 @@ bash tools/package-app.sh          # 产出 dist/Amigo.app
 
 ```bash
 cd license-server && docker compose up -d --build      # :8787，licenses.json 持久化到 ./data
-docker compose exec lingzai-license node admin.js issue --plan pro --devices 1 --days 365   # 发码
+docker compose exec amigo-license node admin.js issue --plan pro --devices 1 --days 365   # 发码
 ```
 
 详见 [license-server/README.md](license-server/README.md)。
 
 ## 内容合规红线
 
-生成能力内置了合规护栏（[Sources/Lingzai/Compliance.swift](Sources/Lingzai/Compliance.swift)）：
+生成能力内置了合规护栏（[Sources/Amigo/Compliance.swift](Sources/Amigo/Compliance.swift)）：
 
 - **文本**：每次大模型请求都注入红线系统提示（优先级高于用户自定义人设），输出须符合中华人民共和国法律法规，拒绝涉政敏感 / 暴恐 / 色情 / 赌毒 / 违法犯罪 / 翻墙规避监管等内容。
 - **形象生成**：每次生图 prompt 追加版权 / 商标 / 肖像红线；对用户描述做前置关键词初筛，命中受保护 IP（迪士尼 / 宝可梦 / 三丽鸥等）或违法词直接拦下，只产出原创、非侵权形象。
@@ -65,13 +65,13 @@ docker compose exec lingzai-license node admin.js issue --plan pro --devices 1 -
 ## 数据位置
 
 全部只存本机：`~/Library/Application Support/Amigo/`
-（`config.json` 含模型 Key、`pets/` 形象与动作帧、`memories.json`、`chat.json`、`todos.json`）。
+（`config.json` 含模型 Key、`pets/` 形象与动作帧、`memories.json`、`chat.json`）。
 设置 →「性格 · 隐私」里可一键在访达打开 / 导出 / 清空。
 
 ## 目录结构
 
 ```
-Sources/Lingzai/     App 源码（AppKit + SwiftUI）
+Sources/Amigo/     App 源码（AppKit + SwiftUI）
 Assets/pets/         打包随附的内置形象 + 动作帧
 tools/               package-app.sh（打包自签）、make-icon.swift
 license-server/      自托管激活服务（Node 零依赖 + Docker）
