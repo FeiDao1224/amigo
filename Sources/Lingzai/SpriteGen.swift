@@ -11,8 +11,8 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
     var emoji: String {
         switch self { case .work: "💻"; case .phone: "📞"; case .think: "🤔"; case .idle: "🧍"; case .run: "🏃"; case .walk: "🚶" }
     }
-    var fps: Double {   // 16 帧：提高帧率保持循环时长≈原来，播放更连贯（显示上限 20fps）
-        switch self { case .work: 16; case .phone: 16; case .think: 12; case .idle: 12; case .run: 20; case .walk: 18 }
+    var fps: Double {   // 16 帧：适中播放速度，别太快（idle 最慢、run 最快）
+        switch self { case .work: 8; case .phone: 8; case .think: 6; case .idle: 5; case .run: 13; case .walk: 10 }
     }
     private var motion: String {
         switch self {
@@ -101,25 +101,49 @@ enum SpriteGen {
         return n
     }
 
-    // MARK: 对齐：按角色包围盒底部居中放到统一画布 → 双脚定住、只有姿势变 → 不再跳
+    // MARK: 对齐：底部对齐(双脚定住) + 水平以「重心」为锚(身体不横晃)
     private static func register(_ frames: [CGImage]) -> [CGImage] {
-        let boxes = frames.map { alphaBBox($0) }
-        guard boxes.allSatisfy({ $0 != nil }) else { return frames }
-        let b = boxes.map { $0! }
-        let maxW = b.map { $0.width }.max() ?? 0
-        let maxH = b.map { $0.height }.max() ?? 0
-        let cvW = Int((maxW * 1.24).rounded()), cvH = Int((maxH * 1.12).rounded())
+        var recs: [(img: CGImage, box: CGRect, cx: CGFloat)] = []
+        for f in frames {
+            guard let box = alphaBBox(f), let cx = centroidX(f, box: box) else { return frames }
+            recs.append((f, box, cx))
+        }
+        let maxH = recs.map { $0.box.height }.max() ?? 0
+        // 以每帧水平重心为锚点(比包围盒中心稳)，锚点两侧各留最大伸展 → 播放不横晃
+        let left = recs.map { $0.cx - $0.box.minX }.max() ?? 0
+        let right = recs.map { $0.box.maxX - $0.cx }.max() ?? 0
+        let cvW = Int(((left + right) * 1.06 + 6).rounded())
+        let cvH = Int((maxH * 1.12).rounded())
         guard cvW > 0, cvH > 0 else { return frames }
+        let anchorX = left + 3
         var out: [CGImage] = []
-        for (img, box) in zip(frames, b) {
-            guard let crop = img.cropping(to: box), let c = ctx(cvW, cvH) else { out.append(img); continue }
+        for r in recs {
+            guard let crop = r.img.cropping(to: r.box), let c = ctx(cvW, cvH) else { out.append(r.img); continue }
             c.clear(CGRect(x: 0, y: 0, width: cvW, height: cvH))
-            let x = (CGFloat(cvW) - box.width) / 2
-            // 底部居中：y=0 是画布底（CGContext 原点在左下），双脚落到底线
-            c.draw(crop, in: CGRect(x: x, y: 0, width: box.width, height: box.height))
-            out.append(c.makeImage() ?? img)
+            let x = anchorX - (r.cx - r.box.minX)   // 重心对齐到画布同一 x
+            // 底部对齐：y=0 是画布底（CGContext 原点在左下），双脚落到底线
+            c.draw(crop, in: CGRect(x: x, y: 0, width: r.box.width, height: r.box.height))
+            out.append(c.makeImage() ?? r.img)
         }
         return out
+    }
+
+    /// 非透明像素的水平重心（胳膊/头摆动不带偏整体，避免横晃）
+    private static func centroidX(_ img: CGImage, box: CGRect) -> CGFloat? {
+        let w = img.width, h = img.height
+        guard let c = ctx(w, h), let buf = { () -> UnsafeMutableRawPointer? in
+            c.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h)); return c.data
+        }() else { return nil }
+        let px = buf.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        let x0 = max(0, Int(box.minX)), x1 = min(w, Int(box.maxX))
+        let y0 = max(0, Int(box.minY)), y1 = min(h, Int(box.maxY))
+        guard x1 > x0, y1 > y0 else { return box.midX }
+        var sumX = 0.0, cnt = 0.0
+        for y in y0..<y1 {
+            let row = y * w
+            for x in x0..<x1 where px[(row + x) * 4 + 3] > 16 { sumX += Double(x); cnt += 1 }
+        }
+        return cnt < 1 ? box.midX : CGFloat(sumX / cnt)
     }
 
     /// 非透明像素的包围盒（top-left 原点，供 cropping 使用）

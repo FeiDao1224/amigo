@@ -7,10 +7,10 @@ enum SystemInfo {
         d.dateFormat = "yyyy年M月d日 EEEE HH:mm"; return d
     }()
 
-    static func context() -> String {
+    static func context(includeFrontApp: Bool = true) -> String {
         var parts = ["现在是 \(df.string(from: Date()))"]
         if let m = memoryUsedPercent() { parts.append("内存占用约 \(m)%") }
-        if let app = frontApp() { parts.append("主人正在用「\(app)」") }
+        if includeFrontApp, let app = frontApp() { parts.append("主人正在用「\(app)」") }
         return "【实时状态，需要时自然引用，别生硬报数】" + parts.joined(separator: "；") + "。"
     }
 

@@ -339,6 +339,7 @@ final class AppState: ObservableObject {
         AppState.clickFunctions + allActions.map { ("act:" + $0.id, "播放 · " + $0.title) }
     }
     func setAgentMonitor(_ v: Bool) { config.agentMonitor = v; persist() }
+    func setSenseFrontApp(_ v: Bool) { config.senseFrontApp = v; persist() }
     func markOnboarded() { config.onboarded = true; persist() }
     func setClick(_ trigger: String, _ v: String) {
         switch trigger {

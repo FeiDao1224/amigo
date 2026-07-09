@@ -62,6 +62,7 @@ final class PetRuntime: ObservableObject {
     var shouldReadAloud: () -> Bool = { false }
     var nudgeUseLLM: () -> Bool = { false }
     var memoryContext: () -> String = { "" }
+    var senseFrontApp: () -> Bool = { true }
 
     private var clearWork: DispatchWorkItem?
     private let canned = [
@@ -82,7 +83,7 @@ final class PetRuntime: ObservableObject {
 
     private var card: CardData { activeCard?() ?? .default }
     private var fullSystem: String {
-        [card.systemPrompt, memoryContext(), SystemInfo.context()].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        [card.systemPrompt, memoryContext(), SystemInfo.context(includeFrontApp: senseFrontApp())].filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 
     func speak() {

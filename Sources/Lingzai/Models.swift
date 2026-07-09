@@ -37,6 +37,7 @@ struct Config: Codable {
     var clickLong: String = "chat"              // 长按行为
     var clickRight: String = "menu"             // 右键行为
     var agentMonitor: Bool = true               // 监控 Claude Code/Codex 等助手状态并冒泡
+    var senseFrontApp: Bool = true              // 回复里带上你正在用的软件（可在交互里关）
     var onboarded: Bool = false                 // 是否过了首启引导
     var seededDoubleClickChat: Bool = false     // 一次性把旧默认(双击=无)迁到"双击=对话"
 }

@@ -44,13 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         runtime.speaker = Speaker()
         runtime.shouldReadAloud = { [weak state] in state?.config.readAloud ?? false }
         runtime.nudgeUseLLM = { [weak state] in state?.config.proactiveLLM ?? false }
+        runtime.senseFrontApp = { [weak state] in state?.config.senseFrontApp ?? true }
 
         chat.provider = { [weak state] in state?.activeProvider() }
         chat.systemPrompt = { [weak state] in
             guard let s = state else { return "" }
             let base = s.currentCard().systemPrompt
             let mem = s.memoryContext()
-            let sys = SystemInfo.context()
+            let sys = SystemInfo.context(includeFrontApp: s.config.senseFrontApp)
             return [base, mem, sys].filter { !$0.isEmpty }.joined(separator: "\n\n")
         }
         chat.onReply = { [weak self] r in
@@ -324,7 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: 设置窗（毛玻璃）
     @objc private func openSettings() {
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 520),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.title = "Amigo · 设置"

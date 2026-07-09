@@ -19,7 +19,6 @@ struct SettingsView: View {
         .init(key: "character",title: "形象", subtitle: "角色 · 自定义 · 动作",  icon: "pawprint.fill",          color: .pink),
         .init(key: "persona",  title: "性格", subtitle: "名字 · 人设 · 记忆 · 隐私", icon: "heart.text.square.fill", color: .purple),
         .init(key: "interact", title: "交互", subtitle: "点击 · 拖拽 · 语音",     icon: "hand.tap.fill",          color: .teal),
-        .init(key: "task",     title: "任务", subtitle: "后续开发",             icon: "checklist",              color: .orange),
         .init(key: "about",    title: "关于", subtitle: "版本 · 激活",          icon: "info.circle.fill",       color: .gray),
     ]
 
@@ -33,7 +32,7 @@ struct SettingsView: View {
                 ForEach(items) { it in
                     SidebarRow(title: it.title, subtitle: it.subtitle,
                                icon: it.icon, color: it.color, selected: sel == it.key)
-                        .frame(maxHeight: .infinity)   // 各项平分纵向空间 → 放大铺满
+                        .frame(maxHeight: 74)   // 平分纵向空间但不过高
                         .onTapGesture { sel = it.key }
                 }
                 Spacer().frame(height: 14)
@@ -54,7 +53,7 @@ struct SettingsView: View {
             }
         }
         }
-        .frame(minWidth: 780, minHeight: 540)
+        .frame(minWidth: 760, minHeight: 500)
         .overlay(alignment: .top) {
             if !state.toast.isEmpty {
                 Text(state.toast)
@@ -76,7 +75,6 @@ struct SettingsView: View {
         case "character": character
         case "persona":   persona
         case "interact":  interactVoice
-        case "task":      placeholder("任务", "提醒 · 督促 · 陪你做 —— 后续开发，敬请期待")
         default:          about
         }
     }
@@ -88,6 +86,7 @@ struct SettingsView: View {
     private var stealthBinding: Binding<Bool> { Binding(get: { state.config.stealth }, set: { state.setStealth($0) }) }
     private var behaviorBinding: Binding<Bool> { Binding(get: { state.config.behaviorDriven }, set: { state.setBehaviorDriven($0) }) }
     private var agentBinding: Binding<Bool> { Binding(get: { state.config.agentMonitor }, set: { state.setAgentMonitor($0) }) }
+    private var senseAppBinding: Binding<Bool> { Binding(get: { state.config.senseFrontApp }, set: { state.setSenseFrontApp($0) }) }
     private func mapRow(_ title: String, _ trigger: String, _ current: String) -> some View {
         GRow(title: title) {
             Picker("", selection: Binding(get: { current }, set: { state.setMap(trigger, $0) })) {
@@ -318,6 +317,10 @@ struct SettingsView: View {
                 GRow(title: "文件拖动", subtitle: "拖文件到它身上 → 用你的模型帮你看 / 给处理建议") {
                     Text("已开放").font(.caption).foregroundStyle(.green)
                 }
+                RowDivider()
+                GRow(title: "感知你在用的软件", subtitle: "开启后，它聊天时会知道你正开着什么软件，回复里可能带上；关掉就完全不看") {
+                    Toggle("", isOn: senseAppBinding).labelsHidden().toggleStyle(.switch)
+                }
             }
             Text("每个点击都能改成：某功能，或播放某个动作。动作没生成时会回退到静态 / 程序动画。")
                 .font(.caption).foregroundStyle(.secondary)
@@ -348,17 +351,6 @@ struct SettingsView: View {
                 GRow(title: "Amigo", subtitle: "被你真实行为驱动的桌面搭子") { Text("v0.1 原生内测").foregroundStyle(.secondary) }
             }
             ProPane(state: state)
-        }
-    }
-
-    private func placeholder(_ title: String, _ desc: String) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title)
-            GroupCard {
-                GRow(title: "建设中", subtitle: desc) {
-                    Image(systemName: "hammer.fill").foregroundStyle(.secondary)
-                }
-            }
         }
     }
 }
