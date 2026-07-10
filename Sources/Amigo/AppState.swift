@@ -319,15 +319,32 @@ final class AppState: ObservableObject {
 
     // MARK: 动作（内置 + 用户自建，统一 ActionDef）
     struct ActionDef: Identifiable, Hashable {
-        let id: String, title: String, emoji: String, prompt: String
+        let id: String, title: String, emoji: String
+        let description: String   // 可编辑的动作描述
+        let prompt: String        // 最终生图提示词（description + 网格约束）
         let loopSeconds: Double, builtin: Bool
     }
-    var builtinActions: [ActionDef] {   // 内置 6 个
-        PetAnimAction.allCases.map { ActionDef(id: $0.rawValue, title: $0.title, emoji: $0.emoji, prompt: $0.prompt, loopSeconds: $0.loopSeconds, builtin: true) }
+    var builtinActions: [ActionDef] {   // 内置 6 个（描述可被 config.actionPrompts 覆盖）
+        PetAnimAction.allCases.map { a in
+            let desc = config.actionPrompts[a.rawValue] ?? a.defaultDescription
+            return ActionDef(id: a.rawValue, title: a.title, emoji: a.emoji,
+                             description: desc, prompt: PetAnimAction.fullPrompt(desc),
+                             loopSeconds: a.loopSeconds, builtin: true)
+        }
     }
     var allActions: [ActionDef] {
-        let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", prompt: $0.prompt, loopSeconds: 1.6, builtin: false) }
+        let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", description: $0.prompt, prompt: $0.prompt, loopSeconds: 1.6, builtin: false) }
         return builtinActions + c
+    }
+    /// 编辑内置动作描述：改了就存覆盖、清空恢复默认
+    func setActionPrompt(_ id: String, _ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty || t == (PetAnimAction(rawValue: id)?.defaultDescription ?? "") {
+            config.actionPrompts[id] = nil
+        } else {
+            config.actionPrompts[id] = t
+        }
+        persist()
     }
 
     @discardableResult
@@ -407,10 +424,16 @@ final class AppState: ObservableObject {
     func setBehaviorDriven(_ v: Bool) { config.behaviorDriven = v; persist(); onGeneratedFramesChanged?() }
     func setMap(_ trigger: String, _ action: String) {
         switch trigger {
-        case "slow": config.mapSlow = action; case "fast": config.mapFast = action
+        case "drag": config.mapDrag = action
         case "chat": config.mapChat = action; default: break
         }
         persist(); onGeneratedFramesChanged?()
+    }
+    /// 右键菜单勾选：加/去某一项
+    func setRightMenuItem(_ id: String, _ on: Bool) {
+        if on { if !config.rightMenuItems.contains(id) { config.rightMenuItems.append(id) } }
+        else { config.rightMenuItems.removeAll { $0 == id } }
+        persist()
     }
 
     // 点击行为可配置：功能 + 播放某动作(act:<id>)

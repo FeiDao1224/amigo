@@ -12,6 +12,7 @@ final class PetRuntime: ObservableObject {
     @Published var characterImageName: String = "penguin"
     @Published var actionFrames: [NSImage] = []         // 当前动作的 AI 帧：非空则优先循环播放
     @Published var actionFPS: Double = 3
+    @Published var speedFactor: Double = 1.0            // 播放倍速（拖动越快越大）
     @Published var moveMotion: Int = 0                  // 0=无 1=走 2=跑（没生成对应动作时的程序位移兜底）
     @Published var waitingReply = false                 // 发消息后等模型返回：显示"打电话"
     @Published var facingLeft = false                   // 朝向：往左走时水平翻转

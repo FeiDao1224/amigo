@@ -62,7 +62,7 @@ struct PetView: View {
         TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
             if !rt.actionFrames.isEmpty {
-                let i = Int(t * rt.actionFPS) % rt.actionFrames.count
+                let i = Int(t * rt.actionFPS * rt.speedFactor) % rt.actionFrames.count
                 Image(nsImage: rt.actionFrames[i]).resizable().interpolation(.none).scaledToFit()
                     .frame(width: 92, height: 140)
                     .scaleEffect(x: rt.facingLeft ? -1 : 1, y: 1)   // 往左走时翻转朝向

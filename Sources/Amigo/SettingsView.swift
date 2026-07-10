@@ -279,11 +279,15 @@ struct SettingsView: View {
                 GRow(title: "行为驱动动作", subtitle: "根据你的操作自动切换动作（需先生成对应动作）") {
                     Toggle("", isOn: behaviorBinding).labelsHidden().toggleStyle(.switch)
                 }
-                RowDivider(); mapRow("慢速拖动", "slow", state.config.mapSlow)
-                RowDivider(); mapRow("快速拖动", "fast", state.config.mapFast)
+                RowDivider()
+                GRow(title: "拖动", subtitle: "拖动宠物时播放这个动作（拖得越快，播得越快）") {
+                    Picker("", selection: Binding(get: { state.config.mapDrag }, set: { state.setMap("drag", $0) })) {
+                        ForEach(state.allActions) { d in Text(d.title).tag(d.id) }
+                    }.labelsHidden().frame(width: 130)
+                }
                 RowDivider(); mapRow("对话中", "chat", state.config.mapChat)
                 RowDivider()
-                GRow(title: "空闲", subtitle: "没操作时播放的动作（默认待着）") {
+                GRow(title: "空闲", subtitle: "没操作时播放的动作（默认待着；久挂机自动睡觉）") {
                     Picker("", selection: Binding(get: { state.config.activeAction }, set: { state.setActiveAction($0) })) {
                         ForEach(state.allActions) { d in Text(d.title).tag(d.id) }
                     }.labelsHidden().frame(width: 130)
@@ -291,9 +295,8 @@ struct SettingsView: View {
                 RowDivider(); clickRow("左键点击", "戳一下", "left", state.config.clickLeft)
                 RowDivider(); clickRow("双击", "连点两下", "double", state.config.clickDouble)
                 RowDivider(); clickRow("长按", "按住不放", "long", state.config.clickLong)
-                RowDivider(); clickRow("右键点击", "右键", "right", state.config.clickRight)
                 RowDivider()
-                GRow(title: "拖动", subtitle: "移动宠物位置（会自动走 / 跑）") { Text("固定").font(.caption).foregroundStyle(.secondary) }
+                GRow(title: "右键", subtitle: "打开下面可自定义的菜单") { Text("菜单").font(.caption).foregroundStyle(.secondary) }
                 RowDivider()
                 GRow(title: "感知你在用的软件", subtitle: "开启后，它聊天时会知道你正开着什么软件，回复里可能带上；关掉就完全不看") {
                     Toggle("", isOn: senseAppBinding).labelsHidden().toggleStyle(.switch)
@@ -301,6 +304,27 @@ struct SettingsView: View {
             }
             Text("每个点击都能改成：某功能，或播放某个动作。动作没生成时会回退到静态 / 程序动画。")
                 .font(.caption).foregroundStyle(.secondary)
+
+            SectionHeader("右键菜单")
+            GroupCard {
+                rightMenuRow("speak", "摸摸头（说一句）")
+                RowDivider(); rightMenuRow("chat", "打开对话")
+                RowDivider(); rightMenuRow("settings", "打开设置")
+                RowDivider(); rightMenuRow("hide", "显示 / 隐藏宠物")
+                RowDivider(); rightMenuRow("quit", "退出")
+                ForEach(state.allActions) { d in
+                    RowDivider(); rightMenuRow("act:" + d.id, "玩：\(d.title)")
+                }
+            }
+            Text("勾选哪些，右键宠物时菜单就显示哪些。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func rightMenuRow(_ id: String, _ label: String) -> some View {
+        GRow(title: label) {
+            Toggle("", isOn: Binding(get: { state.config.rightMenuItems.contains(id) },
+                                     set: { state.setRightMenuItem(id, $0) }))
+                .labelsHidden().toggleStyle(.switch)
         }
     }
 

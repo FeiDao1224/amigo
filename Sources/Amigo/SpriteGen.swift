@@ -3,18 +3,19 @@ import ImageIO
 
 /// 5 个默认动作。prompt 强调"同尺寸/居中/双脚同一基线"，配合帧对齐消除跳动。
 enum PetAnimAction: String, CaseIterable, Identifiable {
-    case work, phone, think, idle, run, walk
+    case work, phone, think, idle, walk, sleep
     var id: String { rawValue }
     var title: String {
-        switch self { case .work: "工作"; case .phone: "打电话"; case .think: "思考"; case .idle: "待着"; case .run: "跑动"; case .walk: "走路" }
+        switch self { case .work: "工作"; case .phone: "打电话"; case .think: "思考"; case .idle: "待着"; case .walk: "走路"; case .sleep: "睡觉" }
     }
     var emoji: String {
-        switch self { case .work: "💻"; case .phone: "📞"; case .think: "🤔"; case .idle: "🧍"; case .run: "🏃"; case .walk: "🚶" }
+        switch self { case .work: "💻"; case .phone: "📞"; case .think: "🤔"; case .idle: "🧍"; case .walk: "🚶"; case .sleep: "😴" }
     }
-    var loopSeconds: Double {   // 一个循环的目标时长；实际帧率=帧数/时长 → 4 帧或 16 帧都同样从容
-        switch self { case .work: 1.4; case .phone: 1.4; case .think: 1.8; case .idle: 2.2; case .run: 0.8; case .walk: 1.1 }
+    var loopSeconds: Double {   // 一个循环的目标时长；实际帧率=帧数/时长（拖动时再乘播放倍速）
+        switch self { case .work: 1.4; case .phone: 1.4; case .think: 1.8; case .idle: 2.2; case .walk: 1.1; case .sleep: 3.2 }
     }
-    private var motion: String {
+    /// 默认动作描述（可被用户在设置里覆盖）
+    var defaultDescription: String {
         switch self {
         case .work:
             return "The character is sitting at a small computer desk seen from the front, typing on a laptop. Frame1: hands resting on keyboard, neutral. Frame2: fingers pressing keys, tiny head tilt. Frame3: typing, small shoulder rise (a breath). Frame4: back to neutral. A subtle looping typing motion."
@@ -24,17 +25,21 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
             return "The character is in a thinking pose seen from the front, one hand near the chin, eyes looking up thoughtfully. Frame1: hand at chin. Frame2: slight head tilt. Frame3: eyes glance further up. Frame4: neutral. A subtle looping thinking motion."
         case .idle:
             return "The character stands still and relaxed, front view — a VERY SUBTLE idle loop. Frame1: neutral. Frame2: eyes blink (closed) with a tiny arm sway. Frame3: gentle breath, slight weight shift onto one foot, the other foot scuffs a little. Frame4: settle back to neutral. Keep the motion calm and minimal."
-        case .run:
-            return "The character is running to the right in side profile — a 4-frame run cycle. Frame1: right leg forward, left leg back, arms swinging. Frame2: legs passing under the body. Frame3: left leg forward, right leg back, arms swinging opposite. Frame4: legs passing again. All frames show the SAME right-facing side profile."
         case .walk:
-            return "The character is walking to the right in side profile — a calm, relaxed 4-frame walk cycle (slower and gentler than a run). Frame1: right leg forward, left leg back, arms gently swinging. Frame2: legs passing under the body. Frame3: left leg forward, right leg back. Frame4: legs passing again. All frames show the SAME right-facing side profile with an even, unhurried stride."
+            return "The character is walking to the right in side profile — an even, unhurried walk cycle. Frame1: right leg forward, left leg back, arms gently swinging. Frame2: legs passing under the body. Frame3: left leg forward, right leg back. Frame4: legs passing again. All frames show the SAME right-facing side profile with a steady stride, body upright."
+        case .sleep:
+            return "The character is curled up ASLEEP, front view — a very slow, calm, peaceful sleeping loop. The body is low and compact, sitting/lying down; eyes stay CLOSED the whole time. Frame1: resting, head tucked down. Frame2: chest rises a little with a slow breath. Frame3: settles back down. Frame4: rest. Very minimal, sleepy motion; the character stays low at the bottom, never stands up."
         }
     }
-    var prompt: String {
-        motion + "\n\nRender this as a SMOOTH 9-frame animation loop arranged in a 3x3 grid (read left-to-right, top-to-bottom) on a plain solid white background. "
+    var prompt: String { PetAnimAction.fullPrompt(defaultDescription) }
+
+    /// 把动作描述拼上统一的网格 / 朝向 / 解剖约束，得到最终生图提示词
+    static func fullPrompt(_ description: String) -> String {
+        description + "\n\nRender this as a SMOOTH 9-frame animation loop arranged in a 3x3 grid (read left-to-right, top-to-bottom) on a plain solid white background. "
         + "The key poses described above are the main beats — interpolate gentle in-between frames so the 9 frames play back as one fluid, seamless loop (frame 9 flows naturally back into frame 1). "
         + "Detailed 32-bit pixel art, the EXACT same character design, colors and size in every one of the 9 cells. "
         + "ORIENTATION (must obey): in EVERY cell the character stands UPRIGHT and right-side-up — head near the TOP of the cell, feet at the BOTTOM; never rotated, tilted, upside-down, or mirrored; keep the exact same upright orientation and scale in all 9 cells. "
+        + "ANATOMY (must obey): the character's feet / paws / hooves stay planted at the very BOTTOM of every cell; NEVER draw a foot, paw, hoof or leg near, on top of, or above the head; keep every limb naturally attached to the body, no floating, detached, or clipping-through limbs. "
         + "CRITICAL FOR ANIMATION: horizontally centered with feet resting on the SAME horizontal ground line in every cell, so all 9 frames line up perfectly when looped. "
         + "Do NOT draw any text, letters, numbers, labels, watermarks, grid lines, borders or frame dividers."
     }
@@ -88,7 +93,8 @@ enum SpriteGen {
         let cells = rects.compactMap { sheet.cropping(to: $0) }
         guard cells.count == frameCount else { throw SpriteGenError.decode }
 
-        let registered = register(cells.map { removeWhite($0) ?? $0 })
+        let clean = dropOutlierFrames(cells.map { removeWhite($0) ?? $0 })   // 剔除穿模/画崩的离群帧
+        let registered = register(clean)
 
         let d = dir(character: character, action: action)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
@@ -98,8 +104,23 @@ enum SpriteGen {
             guard let png = NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:]) else { continue }
             try png.write(to: d.appendingPathComponent("frame-\(i).png")); n += 1
         }
-        guard n == frameCount else { throw SpriteGenError.decode }
+        guard n >= 5 else { throw SpriteGenError.decode }   // 剔除坏帧后帧数可少于 9，够 5 帧就算成功
         return n
+    }
+
+    /// 剔除明显离群的帧：脚跑头顶 / 画崩的那帧，轮廓高度通常异常偏高。保底留 5 帧，剔太多就不剔（避免误伤）。
+    private static func dropOutlierFrames(_ frames: [CGImage]) -> [CGImage] {
+        let boxes = frames.map { alphaBBox($0) }
+        let heights = boxes.compactMap { $0?.height }
+        guard heights.count == frames.count, heights.count >= 6 else { return frames }
+        let median = heights.sorted()[heights.count / 2]
+        guard median > 0 else { return frames }
+        var kept: [CGImage] = []
+        for (i, f) in frames.enumerated() {
+            if let h = boxes[i]?.height, h > median * 1.3 { continue }   // 比中位数高 30%+ → 顶部多出一坨，判为坏帧
+            kept.append(f)
+        }
+        return kept.count >= 5 ? kept : frames
     }
 
     // MARK: 对齐：底部对齐(双脚定住) + 水平以「重心」为锚(身体不横晃)

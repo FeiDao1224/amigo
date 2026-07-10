@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 struct ActionRow: View {
     @ObservedObject var state: AppState
     let def: AppState.ActionDef
+    @State private var editing = false
+    @State private var editText = ""
     private var status: String { state.actionStatus[def.id] ?? "" }
     private var character: String { state.config.character }
     private var made: Bool { SpriteGen.exists(character: character, action: def.id) }
@@ -18,7 +20,10 @@ struct ActionRow: View {
             Text(def.title).font(.system(size: 12, weight: .medium)).lineLimit(1)
             statusText
             HStack(spacing: 6) {
-                if !def.builtin {
+                if def.builtin {
+                    Button { editText = def.description; editing = true } label: { Image(systemName: "pencil") }
+                        .controlSize(.mini).help("编辑动作描述")
+                } else {
                     Button { state.deleteCustomAction(def.id) } label: { Image(systemName: "trash") }.controlSize(.mini)
                 }
                 Button(status == "generating" ? "生成中" : (made ? "重生成" : "生成")) {
@@ -32,6 +37,24 @@ struct ActionRow: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isCurrent ? Color.accentColor : .clear, lineWidth: 2))
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture { state.setActiveAction(def.id) }
+        .sheet(isPresented: $editing) { editSheet }
+    }
+    private var editSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("编辑「\(def.title)」的动作描述").font(.headline)
+            Text("用英文描述这个动作怎么动效果最好。保存后点卡片上的「重生成」用新描述生成。").font(.caption).foregroundStyle(.secondary)
+            TextEditor(text: $editText).font(.system(size: 12)).frame(minHeight: 150)
+                .scrollContentBackground(.hidden).padding(6)
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.1)))
+            HStack {
+                Button("恢复默认") { editText = PetAnimAction(rawValue: def.id)?.defaultDescription ?? "" }.controlSize(.small)
+                Spacer()
+                Button("取消") { editing = false }.controlSize(.small)
+                Button("保存") { state.setActionPrompt(def.id, editText); editing = false }
+                    .buttonStyle(.borderedProminent).controlSize(.small)
+            }
+        }.padding(18).frame(width: 460)
     }
     @ViewBuilder private var statusText: some View {
         if status == "generating" { Text("生成中…").font(.caption2).foregroundStyle(.secondary) }

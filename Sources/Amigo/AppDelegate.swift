@@ -196,24 +196,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                       width: w + expand * 2, height: h + expand * 2)
     }
 
-    // 行为驱动：对话/等回复→打电话；拖动→走/跑(带方向)；用电脑→工作；桌面空→待着
+    // 行为驱动：对话/等回复→打电话；拖动→走(拖越快播越快)；用电脑→工作；久闲→睡觉；否则待着
     private func updateBehaviorAction() {
         if let until = runtime.oneShotUntil {                // 点击触发的一次性动作优先
-            if Date() < until { runtime.showAction(runtime.oneShotKey); return }
+            setSpeed(1); if Date() < until { runtime.showAction(runtime.oneShotKey); return }
             runtime.oneShotUntil = nil
         }
         if runtime.waitingReply || runtime.chatting {
-            runtime.facingLeft = false
+            setSpeed(1); runtime.facingLeft = false
             runtime.showAction(state.config.mapChat); return
         }
         guard state.config.behaviorDriven else {
-            runtime.facingLeft = false; runtime.showAction(state.config.activeAction); return
+            setSpeed(1); runtime.facingLeft = false; runtime.showAction(state.config.activeAction); return
         }
         if dragOffset != nil {
-            let fast = dragSpeed > 320
-            runtime.showAction(fast ? state.config.mapFast : state.config.mapSlow, fallbackMotion: fast ? 2 : 1)
+            setSpeed(min(2.4, max(1.0, dragSpeed / 260)))    // 拖得越快，同一套「走」帧播得越快
+            runtime.showAction(state.config.mapDrag, fallbackMotion: 1)
         } else {
-            runtime.facingLeft = false
+            setSpeed(1); runtime.facingLeft = false
             let now = Date().timeIntervalSinceReferenceDate
             if state.config.senseFrontApp, now - lastFrontCheck > 0.5 {
                 frontActive = SystemInfo.frontApp() != nil
@@ -221,8 +221,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             } else if !state.config.senseFrontApp {
                 frontActive = false
             }
-            runtime.showAction(frontActive ? "work" : state.config.activeAction)   // 用电脑→工作 / 桌面空→默认
+            if now - lastIdleCheck > 1.0 { idleLong = idleSeconds() > 180; lastIdleCheck = now }   // 久闲判定
+            if frontActive { runtime.showAction("work") }                 // 用电脑→工作
+            else if idleLong { runtime.showAction("sleep", fallbackMotion: 0) }   // 闲置>3分钟→睡觉
+            else { runtime.showAction(state.config.activeAction) }        // 否则默认动作
         }
+    }
+    private var idleLong = false
+    private var lastIdleCheck: TimeInterval = 0
+    private func setSpeed(_ v: Double) { if abs(runtime.speedFactor - v) > 0.001 { runtime.speedFactor = v } }
+    private func idleSeconds() -> Double {
+        [CGEventType.mouseMoved, .keyDown, .leftMouseDown, .scrollWheel]
+            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? 0
     }
     private var frontActive = false
     private var lastFrontCheck: TimeInterval = 0
@@ -288,17 +298,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         default:         if key.hasPrefix("act:") { runtime.oneShot(String(key.dropFirst(4))) }
         }
     }
+    // 右键菜单：按 config.rightMenuItems 动态生成（设置里可勾选）
     private func showPetMenu() {
         let menu = NSMenu()
-        let speak = NSMenuItem(title: "摸摸头", action: #selector(menuSpeak), keyEquivalent: "")
-        let settings = NSMenuItem(title: "打开设置…", action: #selector(openSettings), keyEquivalent: "")
-        let hide = NSMenuItem(title: "隐藏宠物", action: #selector(togglePet), keyEquivalent: "")
-        let quit = NSMenuItem(title: "退出 Amigo", action: #selector(quitApp), keyEquivalent: "")
-        for it in [speak, settings, hide, quit] { it.target = self }
-        menu.items = [speak, settings, hide, .separator(), quit]
+        for id in state.config.rightMenuItems {
+            guard let title = rightMenuTitle(id) else { continue }
+            let item = NSMenuItem(title: title, action: #selector(rightMenuTapped(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = id
+            menu.addItem(item)
+        }
+        guard !menu.items.isEmpty else { return }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
-    @objc private func menuSpeak() { runtime.speak() }
+    private func rightMenuTitle(_ id: String) -> String? {
+        switch id {
+        case "speak": return "摸摸头"
+        case "chat": return "打开对话"
+        case "settings": return "打开设置…"
+        case "hide": return "显示 / 隐藏宠物"
+        case "quit": return "退出 Amigo"
+        default:
+            guard id.hasPrefix("act:") else { return nil }
+            let aid = String(id.dropFirst(4))
+            return "玩：" + (state.allActions.first { $0.id == aid }?.title ?? "动作")
+        }
+    }
+    @objc private func rightMenuTapped(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        if id == "quit" { quitApp() } else { executeClick(id) }
+    }
 
     // 点宠物：在它下方开/关输入框（不再开聊天窗）
     private func startInlineChat() {
