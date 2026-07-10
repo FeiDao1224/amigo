@@ -253,13 +253,13 @@ final class AppState: ObservableObject {
     // MARK: 动作（内置 + 用户自建，统一 ActionDef）
     struct ActionDef: Identifiable, Hashable {
         let id: String, title: String, emoji: String, prompt: String
-        let fps: Double, builtin: Bool
+        let loopSeconds: Double, builtin: Bool
     }
     var builtinActions: [ActionDef] {   // 内置 6 个
-        PetAnimAction.allCases.map { ActionDef(id: $0.rawValue, title: $0.title, emoji: $0.emoji, prompt: $0.prompt, fps: $0.fps, builtin: true) }
+        PetAnimAction.allCases.map { ActionDef(id: $0.rawValue, title: $0.title, emoji: $0.emoji, prompt: $0.prompt, loopSeconds: $0.loopSeconds, builtin: true) }
     }
     var allActions: [ActionDef] {
-        let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", prompt: $0.prompt, fps: 12, builtin: false) }
+        let c = config.customActions.map { ActionDef(id: $0.id, title: $0.title, emoji: "✨", prompt: $0.prompt, loopSeconds: 1.6, builtin: false) }
         return builtinActions + c
     }
 

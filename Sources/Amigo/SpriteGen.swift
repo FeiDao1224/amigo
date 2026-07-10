@@ -11,8 +11,8 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
     var emoji: String {
         switch self { case .work: "💻"; case .phone: "📞"; case .think: "🤔"; case .idle: "🧍"; case .run: "🏃"; case .walk: "🚶" }
     }
-    var fps: Double {   // 16 帧：适中播放速度，别太快（idle 最慢、run 最快）
-        switch self { case .work: 8; case .phone: 8; case .think: 6; case .idle: 5; case .run: 13; case .walk: 10 }
+    var loopSeconds: Double {   // 一个循环的目标时长；实际帧率=帧数/时长 → 4 帧或 16 帧都同样从容
+        switch self { case .work: 1.4; case .phone: 1.4; case .think: 1.8; case .idle: 2.2; case .run: 0.8; case .walk: 1.1 }
     }
     private var motion: String {
         switch self {

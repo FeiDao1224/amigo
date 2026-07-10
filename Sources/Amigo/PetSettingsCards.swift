@@ -13,7 +13,7 @@ struct ActionRow: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            ActionPreview(character: character, id: def.id, fps: def.fps).id("\(character)-\(status)")
+            ActionPreview(character: character, id: def.id, loopSeconds: def.loopSeconds).id("\(character)-\(status)")
                 .frame(maxWidth: .infinity).frame(height: 72)
             Text(def.title).font(.system(size: 12, weight: .medium)).lineLimit(1)
             statusText
@@ -45,7 +45,7 @@ struct ActionRow: View {
 struct ActionPreview: View {
     let character: String
     let id: String
-    let fps: Double
+    let loopSeconds: Double
     @State private var frames: [NSImage] = []
     var body: some View {
         ZStack {
@@ -53,6 +53,7 @@ struct ActionPreview: View {
             if frames.isEmpty {
                 Image(systemName: "sparkles").foregroundStyle(.secondary)
             } else {
+                let fps = min(20, max(1, Double(frames.count) / loopSeconds))
                 TimelineView(.animation) { tl in
                     let i = Int(tl.date.timeIntervalSinceReferenceDate * fps) % frames.count
                     Image(nsImage: frames[i]).resizable().interpolation(.none).scaledToFit().padding(4)

@@ -36,7 +36,9 @@ final class PetRuntime: ObservableObject {
         guard cacheKey != currentActionKey else { return }
         currentActionKey = cacheKey
         actionFrames = frames
-        actionFPS = PetAnimAction(rawValue: key)?.fps ?? 4   // 自定义动作默认 4fps
+        // 帧率 = 帧数 / 目标循环时长 → 4 帧或 16 帧都同样从容（上限 20fps=显示刷新率）
+        let loop = PetAnimAction(rawValue: key)?.loopSeconds ?? 1.6
+        actionFPS = min(20, max(1, Double(frames.count) / loop))
     }
     /// 生成/切形象后刷新缓存，下一帧重新加载
     func invalidateActions() { framesCache.removeAll(); currentActionKey = ""; moveMotion = 0; actionFrames = [] }
