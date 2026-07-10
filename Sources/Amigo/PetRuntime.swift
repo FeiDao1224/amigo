@@ -9,7 +9,7 @@ final class PetRuntime: ObservableObject {
     @Published var bubbleText: String = ""
     @Published var petState: PetState = .idle
     @Published var chatting = false                     // 下方输入框展开中
-    @Published var characterImageName: String = "anxious_fish"
+    @Published var characterImageName: String = "penguin"
     @Published var actionFrames: [NSImage] = []         // 当前动作的 AI 帧：非空则优先循环播放
     @Published var actionFPS: Double = 3
     @Published var moveMotion: Int = 0                  // 0=无 1=走 2=跑（没生成对应动作时的程序位移兜底）

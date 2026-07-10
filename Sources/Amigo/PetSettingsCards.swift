@@ -173,11 +173,11 @@ struct CharacterPicker: View {
         if let n = state.config.personas[id]?.name, !n.trimmingCharacters(in: .whitespaces).isEmpty { return n }
         return fallback
     }
-    // 内置(香蕉猫=默认 + 看表鱼) + 用户自定义；正在使用的形象排到最前
+    // 内置(咕咕嘎嘎=默认 + 草地牛) + 用户自定义；正在使用的形象排到最前
     private var chars: [(String, String, Bool)] {   // (id, 名称, 可删?)
         var a: [(String, String, Bool)] = [
-            ("banana_cat", displayName("banana_cat", "香蕉猫"), false),
-            ("anxious_fish", displayName("anxious_fish", "看表鱼"), false),
+            ("penguin", displayName("penguin", "咕咕嘎嘎"), false),
+            ("cow", displayName("cow", "草地牛"), false),
         ]
         a += state.config.customPets.map { ($0.id, displayName($0.id, $0.name), true) }
         if let idx = a.firstIndex(where: { $0.0 == state.config.character }), idx > 0 {

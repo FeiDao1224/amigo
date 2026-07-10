@@ -18,8 +18,8 @@ enum PetImages {
     }
     static func clearCache() { cache.removeAll() }
 
-    /// 打包随附的内置形象（香蕉猫=默认 + 看表鱼），各自带全套动作帧
-    static let builtinCharacters = ["banana_cat", "anxious_fish"]
+    /// 打包随附的内置形象（咕咕嘎嘎=默认 + 草地牛），带动作帧
+    static let builtinCharacters = ["penguin", "cow"]
 
     /// 首次启动：把内置形象的静态图 + 动作帧拷到本机（打包 .app 后新用户即有会动的宠物，不空白、不需模型）
     static func installDefaults() {

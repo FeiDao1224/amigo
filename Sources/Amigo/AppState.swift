@@ -38,27 +38,18 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// 一次性迁移：旧「custom」自定义 → 内置香蕉猫；清掉不再内置的鱼；停用形象回默认
+    /// 一次性迁移：清掉已停用的旧内置形象；当前形象无效则回默认（咕咕嘎嘎）
     private func migrateCharacters() {
         let fm = FileManager.default
         let petsDir = PetImages.dir
-        let customPNG = petsDir.appendingPathComponent("custom.png")
-        let bananaPNG = petsDir.appendingPathComponent("banana_cat.png")
-        if fm.fileExists(atPath: customPNG.path), !fm.fileExists(atPath: bananaPNG.path) {
-            try? fm.copyItem(at: customPNG, to: bananaPNG)
-            let genCustom = SpriteGen.root.appendingPathComponent("custom")
-            let genBanana = SpriteGen.root.appendingPathComponent("banana_cat")
-            if fm.fileExists(atPath: genCustom.path), !fm.fileExists(atPath: genBanana.path) {
-                try? fm.copyItem(at: genCustom, to: genBanana)
-            }
-            try? fm.removeItem(at: customPNG)
-            try? fm.removeItem(at: genCustom)
-        }
-        if ["custom", "lazy_fish", "shocked_fish"].contains(config.character) { config.character = "banana_cat" }
-        for old in ["lazy_fish", "shocked_fish"] {
+        // 清掉不再内置的旧形象文件
+        for old in ["banana_cat", "anxious_fish", "lazy_fish", "shocked_fish", "custom"] {
             try? fm.removeItem(at: petsDir.appendingPathComponent("\(old).png"))
             try? fm.removeItem(at: SpriteGen.root.appendingPathComponent(old))
         }
+        // 当前形象若指向已删除/不存在的形象 → 回默认
+        let valid = PetImages.builtinCharacters + config.customPets.map { $0.id }
+        if !valid.contains(config.character) { config.character = "penguin" }
     }
 
     // MARK: 激活 / 试用（服务器激活，后台自托管）
@@ -152,7 +143,7 @@ final class AppState: ObservableObject {
         try? FileManager.default.removeItem(at: PetImages.dir.appendingPathComponent("\(id).png"))
         try? FileManager.default.removeItem(at: SpriteGen.root.appendingPathComponent(id))
         PetImages.clearCache()
-        if config.character == id { setCharacter("banana_cat") } else { persist() }
+        if config.character == id { setCharacter("penguin") } else { persist() }
         onGeneratedFramesChanged?()
     }
 
@@ -241,9 +232,9 @@ final class AppState: ObservableObject {
         try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
         memories = []
         config.personas = [:]; config.customActions = []; config.customPets = []
-        config.character = "banana_cat"; persist()
+        config.character = "penguin"; persist()
         PetImages.installDefaults()          // 恢复内置形象，避免清空后空白
-        PetImages.clearCache(); onCharacterChanged?("banana_cat")
+        PetImages.clearCache(); onCharacterChanged?("penguin")
     }
 
     // MARK: AI 动作动画（直连你配置的模型端点，无需本地服务）
