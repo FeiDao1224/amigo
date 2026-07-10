@@ -18,7 +18,7 @@ struct SettingsView: View {
         .init(key: "model",    title: "模型", subtitle: "接入大模型",           icon: "cpu",                    color: .blue),
         .init(key: "character",title: "形象", subtitle: "角色 · 自定义 · 动作",  icon: "pawprint.fill",          color: .pink),
         .init(key: "persona",  title: "性格", subtitle: "名字 · 人设 · 记忆 · 隐私", icon: "heart.text.square.fill", color: .purple),
-        .init(key: "interact", title: "交互", subtitle: "点击 · 拖拽 · 语音",     icon: "hand.tap.fill",          color: .teal),
+        .init(key: "interact", title: "交互", subtitle: "点击 · 拖拽 · 空闲",     icon: "hand.tap.fill",          color: .teal),
         .init(key: "about",    title: "关于", subtitle: "版本 · 激活",          icon: "info.circle.fill",       color: .gray),
     ]
 
@@ -74,18 +74,16 @@ struct SettingsView: View {
         case "model":     ModelPane(state: state)
         case "character": character
         case "persona":   persona
-        case "interact":  interactVoice
+        case "interact":  interact
         default:          about
         }
     }
 
     private var dockBinding: Binding<Bool> { Binding(get: { state.config.dockVisible }, set: { state.setDockVisible($0) }) }
     private var proactiveBinding: Binding<Bool> { Binding(get: { state.config.proactive }, set: { state.setProactive($0) }) }
-    private var readAloudBinding: Binding<Bool> { Binding(get: { state.config.readAloud }, set: { state.setReadAloud($0) }) }
     private var proactiveLLMBinding: Binding<Bool> { Binding(get: { state.config.proactiveLLM }, set: { state.setProactiveLLM($0) }) }
     private var stealthBinding: Binding<Bool> { Binding(get: { state.config.stealth }, set: { state.setStealth($0) }) }
     private var behaviorBinding: Binding<Bool> { Binding(get: { state.config.behaviorDriven }, set: { state.setBehaviorDriven($0) }) }
-    private var agentBinding: Binding<Bool> { Binding(get: { state.config.agentMonitor }, set: { state.setAgentMonitor($0) }) }
     private var senseAppBinding: Binding<Bool> { Binding(get: { state.config.senseFrontApp }, set: { state.setSenseFrontApp($0) }) }
     private func mapRow(_ title: String, _ trigger: String, _ current: String) -> some View {
         GRow(title: title) {
@@ -271,28 +269,6 @@ struct SettingsView: View {
         }
     }
 
-    private var interactVoice: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            interact
-            voice
-        }
-    }
-
-    private var voice: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("语音")
-            GroupCard {
-                GRow(title: "朗读回复", subtitle: "阿豆说话时用系统语音读出来") {
-                    Toggle("", isOn: readAloudBinding).labelsHidden().toggleStyle(.switch)
-                }
-                RowDivider()
-                GRow(title: "语音模型", subtitle: "当前用 macOS 系统语音；开源本地音色模型待接入") {
-                    Text("系统语音").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
     private var interact: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("交互")
@@ -300,12 +276,14 @@ struct SettingsView: View {
                 GRow(title: "行为驱动动作", subtitle: "根据你的操作自动切换动作（需先生成对应动作）") {
                     Toggle("", isOn: behaviorBinding).labelsHidden().toggleStyle(.switch)
                 }
-                RowDivider(); mapRow("慢速拖动 → ", "slow", state.config.mapSlow)
-                RowDivider(); mapRow("快速拖动 → ", "fast", state.config.mapFast)
-                RowDivider(); mapRow("对话中 → ", "chat", state.config.mapChat)
+                RowDivider(); mapRow("慢速拖动", "slow", state.config.mapSlow)
+                RowDivider(); mapRow("快速拖动", "fast", state.config.mapFast)
+                RowDivider(); mapRow("对话中", "chat", state.config.mapChat)
                 RowDivider()
-                GRow(title: "空闲", subtitle: "没操作时播放你在「动作」里选中的默认动作") {
-                    Text("＝默认动作").font(.caption).foregroundStyle(.secondary)
+                GRow(title: "空闲", subtitle: "没操作时播放的动作（默认待着）") {
+                    Picker("", selection: Binding(get: { state.config.activeAction }, set: { state.setActiveAction($0) })) {
+                        ForEach(state.allActions) { d in Text(d.title).tag(d.id) }
+                    }.labelsHidden().frame(width: 130)
                 }
                 RowDivider(); clickRow("左键点击", "戳一下", "left", state.config.clickLeft)
                 RowDivider(); clickRow("双击", "连点两下", "double", state.config.clickDouble)
@@ -314,32 +292,11 @@ struct SettingsView: View {
                 RowDivider()
                 GRow(title: "拖动", subtitle: "移动宠物位置（会自动走 / 跑）") { Text("固定").font(.caption).foregroundStyle(.secondary) }
                 RowDivider()
-                GRow(title: "文件拖动", subtitle: "拖文件到它身上 → 用你的模型帮你看 / 给处理建议") {
-                    Text("已开放").font(.caption).foregroundStyle(.green)
-                }
-                RowDivider()
                 GRow(title: "感知你在用的软件", subtitle: "开启后，它聊天时会知道你正开着什么软件，回复里可能带上；关掉就完全不看") {
                     Toggle("", isOn: senseAppBinding).labelsHidden().toggleStyle(.switch)
                 }
             }
             Text("每个点击都能改成：某功能，或播放某个动作。动作没生成时会回退到静态 / 程序动画。")
-                .font(.caption).foregroundStyle(.secondary)
-
-            SectionHeader("助手监控（实验）")
-            GroupCard {
-                GRow(title: "监控 AI 助手状态", subtitle: "Claude Code / Codex 忙完、卡住要确认、报错时，桌宠冒泡告诉你") {
-                    Toggle("", isOn: agentBinding).labelsHidden().toggleStyle(.switch)
-                }
-                RowDivider()
-                GRow(title: "接入 Claude Code", subtitle: "复制 hook 配置，贴进 ~/.claude/settings.json 的 hooks 里") {
-                    Button("复制 Hook 配置") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(AgentBridge.claudeHookJSON(), forType: .string)
-                        state.showToast("已复制，贴进 ~/.claude/settings.json 的 hooks 里即可")
-                    }.controlSize(.small)
-                }
-            }
-            Text("原理：助手用 hook 把状态写到本机 agents/ 目录，桌宠盯着读——不偷看终端。Codex/其它助手同理，用它的 notify/hook 调 bin/agent-hook.sh。")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

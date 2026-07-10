@@ -13,7 +13,6 @@ struct Config: Codable {
     var activeId: String = ""
     var dockVisible: Bool = false
     var proactive: Bool = true          // 行为驱动的主动督促
-    var readAloud: Bool = false         // 朗读回复（系统 TTS）
     var proactiveLLM: Bool = false      // 督促文案由 AI 生成
     var petX: Double? = nil             // 记住宠物位置
     var petY: Double? = nil
@@ -36,7 +35,6 @@ struct Config: Codable {
     var clickDouble: String = "chat"            // 双击行为：默认打开对话输入框
     var clickLong: String = "chat"              // 长按行为
     var clickRight: String = "menu"             // 右键行为
-    var agentMonitor: Bool = true               // 监控 Claude Code/Codex 等助手状态并冒泡
     var senseFrontApp: Bool = true              // 回复里带上你正在用的软件（可在交互里关）
     var onboarded: Bool = false                 // 是否过了首启引导
     var seededDoubleClickChat: Bool = false     // 一次性把旧默认(双击=无)迁到"双击=对话"

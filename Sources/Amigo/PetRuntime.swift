@@ -60,8 +60,6 @@ final class PetRuntime: ObservableObject {
 
     var activeProvider: (() -> Provider?)?
     var activeCard: (() -> CardData)?
-    var speaker: Speaker?
-    var shouldReadAloud: () -> Bool = { false }
     var nudgeUseLLM: () -> Bool = { false }
     var memoryContext: () -> String = { "" }
     var senseFrontApp: () -> Bool = { true }
@@ -77,7 +75,6 @@ final class PetRuntime: ObservableObject {
         clearWork?.cancel()
         if sticky { return }
         if text != "…" { setState(.talk, revertAfter: 2.6) }
-        if shouldReadAloud() { speaker?.speak(text) }
         let w = DispatchWorkItem { [weak self] in withAnimation { self?.bubbleText = "" } }
         clearWork = w
         DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: w)
@@ -122,22 +119,6 @@ final class PetRuntime: ObservableObject {
         }
     }
 
-    /// 拖文件给它 → 简短反应 / 处理建议
-    func handleFile(_ url: URL) {
-        let name = url.lastPathComponent
-        guard let p = activeProvider?(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
-            showBubble("把「\(name)」叼过来了~（配个模型我就能帮你看看）"); return
-        }
-        showBubble("闻闻这个「\(name)」…", sticky: true)
-        let system = fullSystem
-        Task { @MainActor in
-            do {
-                let line = try await LLM.chat(provider: p, system: system,
-                    user: "主人把文件「\(name)」拖给了你。用你的性格，简短说一句你的反应，或能帮 TA 怎么处理，不超过 25 字。")
-                showBubble(line)
-            } catch { showBubble("（这文件我看不懂…）") }
-        }
-    }
 
     func morningGreeting() { showBubble("早上好困……要来杯咖啡吗？") }
 }

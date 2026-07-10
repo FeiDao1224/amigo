@@ -30,18 +30,6 @@ final class ChatSession: ObservableObject {
 
     init() { messages = ChatStore.load() }
 
-    /// 拖文件进聊天：文本文件带内容、其余带文件名，交给大模型
-    func sendFile(_ url: URL) {
-        let name = url.lastPathComponent
-        var msg = "我拖给你一个文件：\(name)。"
-        if let data = try? Data(contentsOf: url), data.count < 200_000, let text = String(data: data, encoding: .utf8) {
-            msg += "内容如下（帮我看看 / 给点处理建议）：\n\(text.prefix(2000))"
-        } else {
-            msg += "帮我说说这类文件一般怎么处理。"
-        }
-        send(msg)
-    }
-
     var provider: () -> Provider? = { nil }
     var systemPrompt: () -> String = { "" }                 // 人格 + 记忆
     var onReply: (String) -> Void = { _ in }                // 镜像到桌宠气泡

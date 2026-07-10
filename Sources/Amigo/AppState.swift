@@ -117,7 +117,6 @@ final class AppState: ObservableObject {
     func setActive(_ id: String) { config.activeId = id; persist() }
 
     func setProactive(_ v: Bool) { config.proactive = v; persist() }
-    func setReadAloud(_ v: Bool) { config.readAloud = v; persist() }
     func setProactiveLLM(_ v: Bool) { config.proactiveLLM = v; persist() }
     func setStealth(_ v: Bool) { config.stealth = v; persist() }
     var onCharacterChanged: ((String) -> Void)?
@@ -323,7 +322,6 @@ final class AppState: ObservableObject {
     var clickOptions: [(String, String)] {
         AppState.clickFunctions + allActions.map { ("act:" + $0.id, "播放 · " + $0.title) }
     }
-    func setAgentMonitor(_ v: Bool) { config.agentMonitor = v; persist() }
     func setSenseFrontApp(_ v: Bool) { config.senseFrontApp = v; persist() }
     func markOnboarded() { config.onboarded = true; persist() }
     func setClick(_ trigger: String, _ v: String) {

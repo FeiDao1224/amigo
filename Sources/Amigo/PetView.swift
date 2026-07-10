@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 struct PetView: View {
     @ObservedObject var rt: PetRuntime
     var onDrag: (Bool) -> Void          // ended?
-    var onFile: (URL) -> Void
     var onSend: (String) -> Void
     var onTrigger: (String) -> Void = { _ in }
 
@@ -90,7 +89,6 @@ struct PetView: View {
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.4).onEnded { _ in onTrigger("long") }
         )
-        .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
     }
 
     // 没有形象图时的极简兜底
@@ -100,16 +98,5 @@ struct PetView: View {
             Text("选个形象").font(.caption2).foregroundStyle(.secondary)
         }
         .frame(width: 92, height: 140)
-    }
-
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let p = providers.first else { return false }
-        p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-            var url: URL?
-            if let d = item as? Data { url = URL(dataRepresentation: d, relativeTo: nil) }
-            else if let u = item as? URL { url = u }
-            if let url { DispatchQueue.main.async { onFile(url) } }
-        }
-        return true
     }
 }

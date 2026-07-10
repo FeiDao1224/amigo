@@ -54,16 +54,6 @@ struct ChatView: View {
         }
         .frame(minWidth: 340, minHeight: 400)
         .background(VisualEffectView().ignoresSafeArea())   // 毛玻璃
-        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-            guard let p = providers.first else { return false }
-            p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                var url: URL?
-                if let d = item as? Data { url = URL(dataRepresentation: d, relativeTo: nil) }
-                else if let u = item as? URL { url = u }
-                if let url { DispatchQueue.main.async { session.sendFile(url) } }
-            }
-            return true
-        }
     }
 
     private func sendIt() {

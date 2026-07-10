@@ -23,7 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var chatWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var engine: BehaviorEngine?
-    private var agentBridge: AgentBridge?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         PetImages.installDefaults()   // 首启：内置默认形象拷到本机（新用户不空白）
@@ -40,8 +39,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             PetImages.clearCache()
             self?.runtime.setCharacter(id)
         }
-        runtime.speaker = Speaker()
-        runtime.shouldReadAloud = { [weak state] in state?.config.readAloud ?? false }
         runtime.nudgeUseLLM = { [weak state] in state?.config.proactiveLLM ?? false }
         runtime.senseFrontApp = { [weak state] in state?.config.senseFrontApp ?? true }
 
@@ -79,11 +76,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         e.isPetVisible = { [weak self] in self?.petPanel?.isVisible ?? false }
         e.start()
         engine = e
-
-        let ab = AgentBridge(runtime: runtime)
-        ab.isEnabled = { [weak self] in (self?.state.config.agentMonitor ?? false) && (self?.state.entitled ?? false) }
-        ab.start()
-        agentBridge = ab
 
         if !state.config.onboarded {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.showOnboarding() }
@@ -152,7 +144,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let view = PetView(
             rt: runtime,
             onDrag: { [weak self] ended in self?.dragTick(ended: ended) },
-            onFile: { [weak self] url in self?.runtime.handleFile(url) },
             onSend: { [weak self] text in
                 guard let self else { return }
                 self.runtime.chatting = false            // 收起输入框
