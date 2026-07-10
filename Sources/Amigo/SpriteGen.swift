@@ -28,7 +28,7 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
         case .walk:
             return "The character is walking to the right in side profile — an even, unhurried walk cycle. Frame1: right leg forward, left leg back, arms gently swinging. Frame2: legs passing under the body. Frame3: left leg forward, right leg back. Frame4: legs passing again. All frames show the SAME right-facing side profile with a steady stride, body upright."
         case .sleep:
-            return "The character is curled up ASLEEP, front view — a very slow, calm, peaceful sleeping loop. The body is low and compact, sitting/lying down; eyes stay CLOSED the whole time. Frame1: resting, head tucked down. Frame2: chest rises a little with a slow breath. Frame3: settles back down. Frame4: rest. Very minimal, sleepy motion; the character stays low at the bottom, never stands up."
+            return "The character is dozing off / napping while SITTING or STANDING IN PLACE, front view, ALONE on a plain empty background. STRICT: absolutely NO bed, NO blanket, NO quilt, NO pillow, NO mattress, NO furniture and NO props of any kind — draw ONLY the character itself, the exact same body, colors and silhouette as when it is standing, just sleepy. Eyes stay CLOSED the whole time; the head slowly nods down then gently bobs back up; slow calm breathing; a tiny sleepy feeling. Very minimal, peaceful motion; the character keeps its normal upright standing pose the whole loop."
         }
     }
     var prompt: String { PetAnimAction.fullPrompt(defaultDescription) }
@@ -117,7 +117,9 @@ enum SpriteGen {
         guard median > 0 else { return frames }
         var kept: [CGImage] = []
         for (i, f) in frames.enumerated() {
-            if let h = boxes[i]?.height, h > median * 1.3 { continue }   // 比中位数高 30%+ → 顶部多出一坨，判为坏帧
+            guard let h = boxes[i]?.height else { kept.append(f); continue }
+            if h > median * 1.3 { continue }    // 太高 → 顶部多出一坨(穿模/脚上头)
+            if h < median * 0.55 { continue }   // 太矮 → 主体被去白底吃掉了(发灰/无色/画崩)
             kept.append(f)
         }
         return kept.count >= 5 ? kept : frames
