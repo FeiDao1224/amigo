@@ -40,16 +40,21 @@ bash tools/package-app.sh          # 产出 dist/Amigo.app
 
 ## 激活服务（可选，默认免费）
 
-默认发布不带激活码：`Sources/Amigo/License.swift` 里 `enforced = false`，人人免费用。
+开发运行默认免费。正式收费包在打包时注入许可证配置，不改源码：
 
-要开收费：
-1. `License.enforced = true`
-2. `License.serverBase` 从 `http://localhost:8787` 换成你的线上域名
-3. 起自托管激活服务（零依赖 Node，数据存本地 JSON）：
+1. 起自托管激活服务并生成 Ed25519 签名密钥。
+2. 生成公钥写入正式包；私钥只留在服务器。
+3. 用下面环境变量打包。用户首次激活需要联网，签名收据保存后可离线使用。
 
 ```bash
 cd license-server && docker compose up -d --build      # :8787，licenses.json 持久化到 ./data
 docker compose exec amigo-license node admin.js issue --plan pro --devices 1 --days 365   # 发码
+
+export AMIGO_LICENSE_ENFORCED=1
+export AMIGO_LICENSE_SERVER=https://license.example.com
+export AMIGO_LICENSE_PUBLIC_KEY='keygen 命令输出的公钥'
+swift build -c release
+bash tools/package-app.sh
 ```
 
 详见 [license-server/README.md](license-server/README.md)。
@@ -65,7 +70,7 @@ docker compose exec amigo-license node admin.js issue --plan pro --devices 1 --d
 ## 数据位置
 
 全部只存本机：`~/Library/Application Support/Amigo/`
-（`config.json` 含模型 Key、`pets/` 形象与动作帧、`memories.json`、`chat.json`）。
+（`config.json`、`pets/` 形象与动作帧、`memories.json`、`chat.json`）。模型 API Key 存在 macOS Keychain，不写入 `config.json`。
 设置 →「性格 · 隐私」里可一键在访达打开 / 导出 / 清空。
 
 ## 目录结构

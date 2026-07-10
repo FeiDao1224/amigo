@@ -3,6 +3,8 @@
 Application Support/
 tools/license-private.key
 license-server/licenses.json
+license-server/data/
+license-server/*.pem
 license-server/node_modules/
 dist/
 AppIcon.iconset/

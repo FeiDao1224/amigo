@@ -1,11 +1,88 @@
 import Foundation
+import Security
 
 struct Provider: Codable, Identifiable, Hashable {
-    var id: String = UUID().uuidString
+    var id: String
     var name: String
     var baseUrl: String
     var model: String
     var apiKey: String
+
+    init(id: String = UUID().uuidString, name: String, baseUrl: String, model: String, apiKey: String) {
+        self.id = id
+        self.name = name
+        self.baseUrl = baseUrl
+        self.model = model
+        self.apiKey = apiKey
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, baseUrl, model, apiKey }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        name = try values.decode(String.self, forKey: .name)
+        baseUrl = try values.decode(String.self, forKey: .baseUrl)
+        model = try values.decode(String.self, forKey: .model)
+        // Backward compatibility: older config files may still contain a plaintext key.
+        apiKey = try values.decodeIfPresent(String.self, forKey: .apiKey) ?? ""
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(name, forKey: .name)
+        try values.encode(baseUrl, forKey: .baseUrl)
+        try values.encode(model, forKey: .model)
+        // Keep a legacy key only when Keychain migration failed, so a failed migration never loses access.
+        if !apiKey.isEmpty { try values.encode(apiKey, forKey: .apiKey) }
+    }
+}
+
+enum KeychainStore {
+    private static let service = "com.amigo.app.provider-key"
+
+    static func read(_ account: String) -> String? {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    @discardableResult
+    static func save(_ value: String, account: String) -> Bool {
+        let base: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+        ]
+        let changes: [CFString: Any] = [
+            kSecValueData: Data(value.utf8),
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        let updateStatus = SecItemUpdate(base as CFDictionary, changes as CFDictionary)
+        if updateStatus == errSecSuccess { return true }
+        guard updateStatus == errSecItemNotFound else { return false }
+
+        var item = base
+        for (key, value) in changes { item[key] = value }
+        return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+    }
+
+    static func delete(_ account: String) {
+        SecItemDelete([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+        ] as CFDictionary)
+    }
 }
 
 struct Config: Codable {
@@ -22,6 +99,7 @@ struct Config: Codable {
     var licenseCode: String = ""             // 激活码
     var licenseActivated = false             // 已激活(服务器确认)
     var licenseExpiresAt: Double? = nil       // 到期 epoch ms（null=永久）
+    var licenseReceipt: String = ""          // 服务端 Ed25519 签名，离线验签使用
     var deviceId: String = ""                // 本机标识（激活绑定）
     var installedAt: Double? = nil            // 首次安装 epoch s（试用期起算）
     var activeAction: String = "idle"   // 当前播放的 AI 生成动作（行为驱动关闭时用）
@@ -36,6 +114,7 @@ struct Config: Codable {
     var clickLong: String = "chat"              // 长按行为
     var clickRight: String = "menu"             // 右键行为
     var senseFrontApp: Bool = true              // 回复里带上你正在用的软件（可在交互里关）
+    var autoMemory: Bool = false                // 自动从对话提取长期记忆，默认关闭
     var onboarded: Bool = false                 // 是否过了首启引导
     var seededDoubleClickChat: Bool = false     // 一次性把旧默认(双击=无)迁到"双击=对话"
 }
@@ -55,12 +134,17 @@ struct CustomAction: Codable, Identifiable, Hashable {
 
 /// 配置持久化：~/Library/Application Support/Amigo/config.json
 enum ConfigStore {
-    static var url: URL {
+    static var directory: URL {
         let base = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("Amigo", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base.appendingPathComponent("config.json")
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: base.path)
+        return base
+    }
+
+    static var url: URL {
+        directory.appendingPathComponent("config.json")
     }
     static func load() -> Config {
         guard let data = try? Data(contentsOf: url) else { return Config() }
@@ -76,7 +160,13 @@ enum ConfigStore {
         return cfg
     }
     static func save(_ cfg: Config) {
-        if let data = try? JSONEncoder().encode(cfg) { try? data.write(to: url) }
+        guard let data = try? JSONEncoder().encode(cfg) else { return }
+        do {
+            try data.write(to: url, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch {
+            NSLog("Amigo config save error: \(error.localizedDescription)")
+        }
     }
 }
 

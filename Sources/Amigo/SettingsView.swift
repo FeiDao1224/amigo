@@ -106,7 +106,7 @@ struct SettingsView: View {
             SectionHeader("隐私 · 它懂你，但不偷看你")
             GroupCard {
                 GRow(title: "数据都在你自己的电脑上",
-                     subtitle: "记忆 / 任务 / 性格 / 形象 / API Key 全部只存在本机，从不上传到我们的服务器") {
+                     subtitle: "聊天 / 记忆 / 性格 / 形象 / API Key 全部只存在本机，从不上传到我们的服务器") {
                     Button("在访达中打开") { state.revealDataFolder() }
                 }
             }
@@ -133,7 +133,7 @@ struct SettingsView: View {
 
             SectionHeader("你的控制权")
             GroupCard {
-                GRow(title: "导出我的数据", subtitle: "把记忆 / 任务 复制一份到你选的文件夹（不含 Key）") {
+                GRow(title: "导出我的数据", subtitle: "把聊天记录和记忆复制一份到你选的文件夹（不含 Key）") {
                     Button("导出…") { state.exportData() }
                 }
                 RowDivider()
@@ -143,9 +143,9 @@ struct SettingsView: View {
                     }
                 }
                 RowDivider()
-                GRow(title: "清空全部数据", subtitle: "记忆 / 任务 / 自定义形象 / 性格全部抹掉（模型 Key 在「模型」页单独管理）") {
+                GRow(title: "清空本地内容数据", subtitle: "聊天记录 / 记忆 / 自定义形象 / 人设 / 动作和位置都会抹掉；模型 Key 保留在系统钥匙串") {
                     Button("清空…") {
-                        if confirm("清空全部数据？", "记忆、任务、自定义形象、性格都会被删除，无法恢复。") { state.wipeAllData() }
+                        if confirm("清空本地内容数据？", "聊天记录、记忆、自定义形象、人设、动作和位置都会被删除，无法恢复。") { state.wipeAllData() }
                     }.tint(.red)
                 }
             }
@@ -193,7 +193,7 @@ struct SettingsView: View {
                     Toggle("", isOn: dockBinding).labelsHidden().toggleStyle(.switch)
                 }
                 RowDivider()
-                GRow(title: "语言", subtitle: "默认跟随系统，也可固定为简体中文 / English") {
+                GRow(title: "语言", subtitle: "当前跟随系统语言") {
                     Text("跟随系统").foregroundStyle(.secondary)
                 }
                 RowDivider()
@@ -246,10 +246,13 @@ struct SettingsView: View {
                     }
                     HStack(spacing: 10) {
                         Button(state.batchGenerating ? "生成中…" : "一键生成默认 6 个动作") {
-                            Task { await state.generateAllActions() }
+                            state.startGenerateAllActions()
                         }.buttonStyle(.borderedProminent).controlSize(.small)
                             .disabled(state.batchGenerating || !state.hasModel)
-                        if state.batchGenerating { Text(state.batchProgress).font(.caption).foregroundStyle(.secondary) }
+                        if state.batchGenerating {
+                            Text(state.batchProgress).font(.caption).foregroundStyle(.secondary)
+                            Button("取消") { state.cancelGenerateAllActions() }.controlSize(.small)
+                        }
                         Spacer()
                     }
                 }.padding(14)

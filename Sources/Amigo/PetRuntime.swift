@@ -119,6 +119,5 @@ final class PetRuntime: ObservableObject {
         }
     }
 
-
     func morningGreeting() { showBubble("早上好困……要来杯咖啡吗？") }
 }

@@ -1,6 +1,7 @@
 // 激活码管理：node admin.js issue [--plan pro] [--devices 1] [--days 365]
 //              node admin.js list
 //              node admin.js revoke <CODE>
+//              node admin.js keygen --out ./data/license-private.pem
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -37,6 +38,17 @@ if (cmd === "issue") {
   const c = (args[0] || "").toUpperCase();
   if (db[c]) { db[c].revoked = true; save(db); console.log("已吊销", c); }
   else console.log("没找到", c);
+} else if (cmd === "keygen") {
+  const out = path.resolve(get("out", path.join(__dirname, "license-private.pem")));
+  if (fs.existsSync(out)) throw new Error(`私钥文件已存在：${out}`);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
+  fs.writeFileSync(out, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
+  const spki = publicKey.export({ type: "spki", format: "der" });
+  const publicKeyBase64 = spki.subarray(-32).toString("base64");
+  console.log(`私钥已写入：${out}`);
+  console.log("把这行作为正式打包环境变量保存（可以公开）：");
+  console.log(`AMIGO_LICENSE_PUBLIC_KEY=${publicKeyBase64}`);
 } else {
-  console.log("用法: node admin.js issue [--plan pro] [--devices 1] [--days 365] | list | revoke <CODE>");
+  console.log("用法: node admin.js issue [--plan pro] [--devices 1] [--days 365] | list | revoke <CODE> | keygen [--out path]");
 }

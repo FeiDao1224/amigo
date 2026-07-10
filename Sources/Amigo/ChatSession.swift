@@ -35,6 +35,9 @@ final class ChatSession: ObservableObject {
     var onReply: (String) -> Void = { _ in }                // 镜像到桌宠气泡
     var onInferred: ([(content: String, category: String)]) -> Void = { _ in }
     var isStealth: () -> Bool = { false }
+    var shouldInferMemory: () -> Bool = { false }
+
+    func clear() { messages = [] }
 
     func send(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -54,7 +57,7 @@ final class ChatSession: ObservableObject {
                 let reply = try await LLM.chat(provider: p, messages: msgs)
                 messages.append(ChatMsg(role: "assistant", content: reply))
                 onReply(reply)
-                if !isStealth() { extractMemory(provider: p) }
+                if shouldInferMemory() && !isStealth() { extractMemory(provider: p) }
             } catch {
                 let m = "（出错了：\(error.localizedDescription)）"
                 messages.append(ChatMsg(role: "assistant", content: m))

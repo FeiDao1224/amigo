@@ -23,9 +23,10 @@ final class AppState: ObservableObject {
             if config.clickDouble == "none" { config.clickDouble = "chat" }
             config.seededDoubleClickChat = true
         }
+        migrateProviderSecrets()
         migrateCharacters()
         ConfigStore.save(config)
-        licensed = config.licenseActivated && !licenseExpired
+        licensed = License.verify(config.licenseReceipt, device: config.deviceId).ok
     }
 
     /// 一次性：把旧「Lingzai」数据目录改名为「Amigo」，保住已配置的模型 Key / 形象 / 记忆
@@ -53,13 +54,16 @@ final class AppState: ObservableObject {
     }
 
     // MARK: 激活 / 试用（服务器激活，后台自托管）
-    let trialDays = 7
+    let trialDays = 15
     var trialEndsAt: Date { Date(timeIntervalSince1970: config.installedAt ?? Date().timeIntervalSince1970).addingTimeInterval(Double(trialDays) * 86400) }
     var withinTrial: Bool { Date() < trialEndsAt }
     var trialDaysLeft: Int { max(0, Int(ceil(trialEndsAt.timeIntervalSinceNow / 86400))) }
-    var licenseExpired: Bool { if let e = config.licenseExpiresAt { return Date().timeIntervalSince1970 * 1000 > e }; return false }
-    /// 能不能用：激活未开启时(默认)人人免费；开启后=已激活(未过期) 或 试用期内
-    var entitled: Bool { !License.enforced || (licensed && !licenseExpired) || withinTrial }
+    var licenseExpired: Bool {
+        guard let expiresAt = License.verify(config.licenseReceipt, device: config.deviceId).expiresAt else { return false }
+        return Date().timeIntervalSince1970 * 1000 > expiresAt
+    }
+    /// 能不能用：开发版默认免费；正式版由离线验签的许可证或 15 天试用决定。
+    var entitled: Bool { !License.enforced || License.verify(config.licenseReceipt, device: config.deviceId).ok || withinTrial }
 
     /// 输入激活码 → 服务器激活并绑定本机；返回 "" 成功，否则错误文案
     @MainActor
@@ -67,43 +71,108 @@ final class AppState: ObservableObject {
         let c = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard !c.isEmpty else { return "先填激活码" }
         let r = await License.call("/api/activate", code: c, device: config.deviceId)
-        if r.ok {
-            config.licenseCode = c; config.licenseActivated = true; config.licenseExpiresAt = r.expiresAt
+        if r.ok, let receipt = r.receipt {
+            let verified = License.verify(receipt, device: config.deviceId)
+            guard verified.ok else { return verified.error ?? "许可证验证失败" }
+            config.licenseCode = c; config.licenseReceipt = receipt
+            config.licenseActivated = true; config.licenseExpiresAt = verified.expiresAt
             licensed = true; persist(); return ""
         }
-        return r.error == "__offline__" ? "连不上激活服务器" : (r.error ?? "激活失败")
+        return r.error == "__offline__" ? "需要联网完成首次激活" : (r.error ?? "激活失败")
     }
-    func deactivate() { config.licenseCode = ""; config.licenseActivated = false; config.licenseExpiresAt = nil; persist(); licensed = false }
-    /// 启动时复验（服务器可吊销/到期）；连不上则保持本地缓存宽限
+    func deactivate() {
+        config.licenseCode = ""; config.licenseReceipt = ""
+        config.licenseActivated = false; config.licenseExpiresAt = nil; persist(); licensed = false
+    }
+    /// 启动时可联网复验撤销/到期；连不上时保留已验签的本地许可证。
     @MainActor
     func revalidate() async {
-        guard !config.licenseCode.isEmpty else { return }
+        let local = License.verify(config.licenseReceipt, device: config.deviceId)
+        licensed = local.ok
+        config.licenseActivated = local.ok
+        config.licenseExpiresAt = local.expiresAt
+        guard !config.licenseCode.isEmpty else { persist(); return }
         let r = await License.call("/api/validate", code: config.licenseCode, device: config.deviceId)
-        if r.error == "__offline__" { return }
-        licensed = r.ok; config.licenseActivated = r.ok; config.licenseExpiresAt = r.expiresAt; persist()
+        if r.error == "__offline__" || r.error == "__server__" { persist(); return }
+        guard r.ok, let receipt = r.receipt else {
+            licensed = false; config.licenseActivated = false; config.licenseReceipt = ""; persist(); return
+        }
+        let verified = License.verify(receipt, device: config.deviceId)
+        licensed = verified.ok; config.licenseActivated = verified.ok
+        config.licenseExpiresAt = verified.expiresAt
+        config.licenseReceipt = verified.ok ? receipt : ""
+        persist()
+    }
+
+    private func resolvedProvider(_ provider: Provider) -> Provider {
+        var resolved = provider
+        if resolved.apiKey.isEmpty { resolved.apiKey = KeychainStore.read(resolved.id) ?? "" }
+        return resolved
     }
 
     func activeProvider() -> Provider? {
-        config.providers.first { $0.id == config.activeId } ?? config.providers.first
+        let provider = config.providers.first { $0.id == config.activeId } ?? config.providers.first
+        return provider.map(resolvedProvider)
     }
     private func persist() { ConfigStore.save(config) }
 
-    func upsertProvider(id: String?, name: String, baseUrl: String, model: String, apiKey: String) {
+    private func migrateProviderSecrets() {
+        for index in config.providers.indices where !config.providers[index].apiKey.isEmpty {
+            let provider = config.providers[index]
+            if KeychainStore.save(provider.apiKey, account: provider.id) {
+                config.providers[index].apiKey = ""
+            } else {
+                showToast("无法把模型 Key 存入 macOS Keychain，已保留原配置")
+            }
+        }
+    }
+
+    func hasCredential(for providerId: String) -> Bool {
+        !((KeychainStore.read(providerId) ?? "").isEmpty)
+            || config.providers.first(where: { $0.id == providerId })?.apiKey.isEmpty == false
+    }
+
+    func credential(for providerId: String) -> String? {
+        KeychainStore.read(providerId) ?? config.providers.first(where: { $0.id == providerId })?.apiKey
+    }
+
+    @discardableResult
+    func upsertProvider(id: String?, name: String, baseUrl: String, model: String, apiKey: String?) -> Bool {
         if let id, let i = config.providers.firstIndex(where: { $0.id == id }) {
+            if let apiKey, !apiKey.isEmpty, !KeychainStore.save(apiKey, account: id) {
+                showToast("模型 Key 保存失败，请检查 macOS Keychain 后重试")
+                return false
+            }
             config.providers[i].name = name
             config.providers[i].baseUrl = baseUrl
             config.providers[i].model = model
-            config.providers[i].apiKey = apiKey
+            config.providers[i].apiKey = ""
         } else {
-            let p = Provider(name: name, baseUrl: baseUrl, model: model, apiKey: apiKey)
+            guard let apiKey, !apiKey.isEmpty else {
+                showToast("请填写 API Key")
+                return false
+            }
+            let p = Provider(name: name, baseUrl: baseUrl, model: model, apiKey: "")
+            guard KeychainStore.save(apiKey, account: p.id) else {
+                showToast("模型 Key 保存失败，请检查 macOS Keychain 后重试")
+                return false
+            }
             config.providers.append(p)
             if config.activeId.isEmpty { config.activeId = p.id }
         }
         persist()
+        return true
     }
     @discardableResult
     func importProvider(from raw: String) -> Bool {
-        guard let p = Provider.fromImport(raw) else { return false }
+        guard var p = Provider.fromImport(raw) else { return false }
+        if !p.apiKey.isEmpty {
+            guard KeychainStore.save(p.apiKey, account: p.id) else {
+                showToast("导入失败：无法把模型 Key 存入 macOS Keychain")
+                return false
+            }
+            p.apiKey = ""
+        }
         config.providers.append(p)
         if config.activeId.isEmpty { config.activeId = p.id }
         persist()
@@ -111,6 +180,7 @@ final class AppState: ObservableObject {
     }
     func deleteProvider(_ id: String) {
         config.providers.removeAll { $0.id == id }
+        KeychainStore.delete(id)
         if config.activeId == id { config.activeId = config.providers.first?.id ?? "" }
         persist()
     }
@@ -119,6 +189,7 @@ final class AppState: ObservableObject {
     func setProactive(_ v: Bool) { config.proactive = v; persist() }
     func setProactiveLLM(_ v: Bool) { config.proactiveLLM = v; persist() }
     func setStealth(_ v: Bool) { config.stealth = v; persist() }
+    func setAutoMemory(_ v: Bool) { config.autoMemory = v; persist() }
     var onCharacterChanged: ((String) -> Void)?
     func setCharacter(_ id: String) { config.character = id; persist(); onCharacterChanged?(id) }
 
@@ -228,13 +299,19 @@ final class AppState: ObservableObject {
     func wipeAllData() {
         let fm = FileManager.default
         try? fm.removeItem(at: dataDir.appendingPathComponent("memories.json"))
+        try? fm.removeItem(at: dataDir.appendingPathComponent("chat.json"))
         try? fm.removeItem(at: dataDir.appendingPathComponent("pets"))
+        try? fm.removeItem(at: dataDir.appendingPathComponent("agents"))
         memories = []
         config.personas = [:]; config.customActions = []; config.customPets = []
-        config.character = "penguin"; persist()
+        config.character = "penguin"; config.activeAction = "idle"
+        config.petX = nil; config.petY = nil; persist()
         PetImages.installDefaults()          // 恢复内置形象，避免清空后空白
         PetImages.clearCache(); onCharacterChanged?("penguin")
+        onLocalContentWiped?()
     }
+
+    var onLocalContentWiped: (() -> Void)?
 
     // MARK: AI 动作动画（直连你配置的模型端点，无需本地服务）
     @Published var actionStatus: [String: String] = [:]   // action → "generating"/"success"/"failed:<msg>"
@@ -286,6 +363,10 @@ final class AppState: ObservableObject {
             actionStatus[def.id] = "success"
             onGeneratedFramesChanged?()
         } catch {
+            if Task.isCancelled {
+                actionStatus[def.id] = "cancelled"
+                return
+            }
             actionStatus[def.id] = "failed"
             showToast("「\(def.title)」生成失败：\(error.localizedDescription)")
         }
@@ -293,17 +374,35 @@ final class AppState: ObservableObject {
 
     @Published var batchGenerating = false
     @Published var batchProgress = ""
+    private var batchTask: Task<Void, Never>?
+
+    @MainActor
+    func startGenerateAllActions() {
+        guard batchTask == nil else { return }
+        batchTask = Task { [weak self] in await self?.generateAllActions() }
+    }
+
+    @MainActor
+    func cancelGenerateAllActions() {
+        batchTask?.cancel()
+    }
+
     /// 一键生成：只生成内置 6 个默认动作（自建动作各自单独生成）
     @MainActor
     func generateAllActions() async {
         guard !batchGenerating else { return }
         batchGenerating = true
+        defer {
+            batchGenerating = false
+            batchProgress = ""
+            batchTask = nil
+        }
         let all = builtinActions
         for (i, d) in all.enumerated() {
+            guard !Task.isCancelled else { return }
             batchProgress = "\(i + 1)/\(all.count) \(d.title)"
             await generateActionDef(d)
         }
-        batchGenerating = false; batchProgress = ""
     }
     func setBehaviorDriven(_ v: Bool) { config.behaviorDriven = v; persist(); onGeneratedFramesChanged?() }
     func setMap(_ trigger: String, _ action: String) {

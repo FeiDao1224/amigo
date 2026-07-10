@@ -16,7 +16,7 @@ struct ModelPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("模型")
-            Text("配置一个大模型服务：API 端点 + Key + 模型。Key 只存在本地。")
+            Text("配置一个大模型服务：API 端点 + Key + 模型。Key 保存在 macOS Keychain。")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             // 已保存
@@ -29,7 +29,7 @@ struct ModelPane: View {
                     ForEach(Array(state.config.providers.enumerated()), id: \.element.id) { idx, p in
                         let active = (state.config.activeId == p.id)
                             || (state.config.activeId.isEmpty && idx == 0)
-                        GRow(title: p.name, subtitle: (p.model.isEmpty ? "中转站默认模型" : p.model) + (p.apiKey.isEmpty ? " · ⚠ 未填 Key" : "")) {
+                        GRow(title: p.name, subtitle: (p.model.isEmpty ? "中转站默认模型" : p.model) + (state.hasCredential(for: p.id) ? " · Key 已安全保存" : " · ⚠ 未填 Key")) {
                             HStack(spacing: 6) {
                                 Button(active ? "✓ 已启用" : "启用") { state.setActive(p.id) }
                                     .buttonStyle(.borderedProminent).tint(active ? .pink : .gray).controlSize(.small)
@@ -45,12 +45,13 @@ struct ModelPane: View {
 
             // 新增 / 编辑
             SectionHeader(editingId == nil ? "新增配置" : "编辑配置")
-            Text("填 API 端点 + Key + 模型（OpenAI 兼容端点 / 中转站均可）。Key 只存在本地。")
+            Text("填 API 端点 + Key + 模型（OpenAI 兼容端点 / 中转站均可）。Key 保存到 macOS Keychain。")
                 .font(.caption).foregroundStyle(.secondary)
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
                     TextField("API 端点 · Base URL（https://…/v1）", text: $fBase).textFieldStyle(.roundedBorder)
-                    SecureField("API Key（仅存本地）", text: $fKey).textFieldStyle(.roundedBorder)
+                    SecureField(editingId == nil ? "API Key（保存在系统钥匙串）" : "API Key（留空则保留已保存的 Key）", text: $fKey)
+                        .textFieldStyle(.roundedBorder)
 
                     VStack(alignment: .leading, spacing: 3) {
                         TextField("模型（选填）", text: $fModel).textFieldStyle(.roundedBorder)
@@ -64,14 +65,19 @@ struct ModelPane: View {
 
                     HStack {
                         Button(editingId == nil ? "保存配置" : "保存修改") {
-                            guard !fBase.isEmpty, !fKey.isEmpty else { return }
+                            guard !fBase.isEmpty else { return }
+                            if editingId == nil && fKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return }
                             let name = fName.isEmpty ? deriveName(fBase) : fName
-                            state.upsertProvider(id: editingId, name: name, baseUrl: fBase, model: fModel, apiKey: fKey)
-                            clear()
+                            let key = fKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if state.upsertProvider(id: editingId, name: name, baseUrl: fBase, model: fModel, apiKey: key.isEmpty ? nil : key) {
+                                clear()
+                            }
                         }.buttonStyle(.borderedProminent).tint(.pink)
                         Button(testing ? "测试中…" : "测试连接") {
-                            guard !fBase.isEmpty, !fKey.isEmpty else { testMsg = "先填端点和 Key"; return }
-                            test(Provider(name: "test", baseUrl: fBase, model: fModel, apiKey: fKey))
+                            let savedKey = editingId.flatMap { state.credential(for: $0) } ?? ""
+                            let key = fKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? savedKey : fKey
+                            guard !fBase.isEmpty, !key.isEmpty else { testMsg = "先填端点和 Key"; return }
+                            test(Provider(id: editingId ?? UUID().uuidString, name: "test", baseUrl: fBase, model: fModel, apiKey: key))
                         }.disabled(testing)
                         Button("清空") { clear() }
                     }
@@ -85,7 +91,7 @@ struct ModelPane: View {
         }
     }
 
-    private func load(_ p: Provider) { editingId = p.id; fName = p.name; fBase = p.baseUrl; fModel = p.model; fKey = p.apiKey }
+    private func load(_ p: Provider) { editingId = p.id; fName = p.name; fBase = p.baseUrl; fModel = p.model; fKey = "" }
     private func clear() { editingId = nil; fName = ""; fBase = ""; fModel = ""; fKey = "" }
     private func deriveName(_ base: String) -> String {
         if let h = URLComponents(string: base)?.host, !h.isEmpty { return h }
@@ -203,14 +209,19 @@ struct MemoryPane: View {
                     Toggle("", isOn: Binding(get: { state.config.stealth }, set: { state.setStealth($0) }))
                         .labelsHidden().toggleStyle(.switch)
                 }
+                RowDivider()
+                GRow(title: "自动记住对话", subtitle: "开启后，才会把最近对话发送给模型提炼长期记忆；默认关闭") {
+                    Toggle("", isOn: Binding(get: { state.config.autoMemory }, set: { state.setAutoMemory($0) }))
+                        .labelsHidden().toggleStyle(.switch)
+                }
             }
-            Text("所有记忆只存在你本地（Application Support），随时可删。它懂你，但不偷看你。")
+            Text("所有记忆只存在你本地（Application Support），随时可删。开启自动记忆时，提炼所需的最近对话会发送给你选择的模型。")
                 .font(.caption).foregroundStyle(.secondary)
 
             SectionHeader("它记住的")
             if state.memories.isEmpty {
                 GroupCard {
-                    GRow(title: "还没有记忆", subtitle: "下面手动加一条；平时聊天它也会自动记住关于你的事") { EmptyView() }
+                    GRow(title: "还没有记忆", subtitle: state.config.autoMemory ? "平时聊天会按你的设置自动提炼，也可在下面手动添加" : "在下面手动加一条；自动记忆目前已关闭") { EmptyView() }
                 }
             } else {
                 GroupCard {

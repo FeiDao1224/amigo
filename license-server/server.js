@@ -4,14 +4,34 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const DB = process.env.LICENSE_DB || path.join(__dirname, "licenses.json");
 const PORT = process.env.PORT || 8787;
+const SIGNING_KEY_FILE = process.env.LICENSE_SIGNING_KEY_FILE || path.join(__dirname, "license-private.pem");
 
 const load = () => { try { return JSON.parse(fs.readFileSync(DB, "utf8")); } catch { return {}; } };
 const save = (d) => fs.writeFileSync(DB, JSON.stringify(d, null, 2));
 const body = (req) => new Promise((res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { try { res(JSON.parse(b || "{}")); } catch { res({}); } }); });
 const json = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
+
+// Receipt format: v1.<base64url(payload JSON)>.<base64url(ed25519 signature)>
+// The private key stays only on the server. The App contains the matching public key.
+const signReceipt = (lic, code, device) => {
+  if (!fs.existsSync(SIGNING_KEY_FILE)) throw new Error("签名私钥未配置");
+  const payload = {
+    version: 1,
+    code,
+    device,
+    plan: lic.plan || "pro",
+    expiresAt: lic.expiresAt || null,
+    issuedAt: Date.now(),
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const privateKey = crypto.createPrivateKey(fs.readFileSync(SIGNING_KEY_FILE, "utf8"));
+  const signature = crypto.sign(null, Buffer.from(encoded), privateKey).toString("base64url");
+  return `v1.${encoded}.${signature}`;
+};
 
 const server = http.createServer(async (req, res) => {
   if (req.method !== "POST") return json(res, 404, { ok: false, error: "not found" });
@@ -34,12 +54,21 @@ const server = http.createServer(async (req, res) => {
       if (lic.days && !lic.expiresAt) lic.expiresAt = Date.now() + lic.days * 86400000; // 按激活起算
       save(db);
     }
-    return json(res, 200, { ok: true, plan: lic.plan || "pro", expiresAt: lic.expiresAt || null });
+    try {
+      return json(res, 200, { ok: true, plan: lic.plan || "pro", expiresAt: lic.expiresAt || null, receipt: signReceipt(lic, code, device) });
+    } catch (error) {
+      return json(res, 500, { ok: false, error: error.message || "许可证签名失败" });
+    }
   }
 
   if (req.url === "/api/validate") {
     const bound = (lic.devices || []).includes(device);
-    return json(res, 200, { ok: bound, plan: lic.plan || "pro", expiresAt: lic.expiresAt || null, error: bound ? undefined : "此设备未激活" });
+    if (!bound) return json(res, 200, { ok: false, error: "此设备未激活" });
+    try {
+      return json(res, 200, { ok: true, plan: lic.plan || "pro", expiresAt: lic.expiresAt || null, receipt: signReceipt(lic, code, device) });
+    } catch (error) {
+      return json(res, 500, { ok: false, error: error.message || "许可证签名失败" });
+    }
   }
   return json(res, 404, { ok: false, error: "not found" });
 });

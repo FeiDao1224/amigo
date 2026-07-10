@@ -1,36 +1,31 @@
 # Pet Animation System
 
-## Current Project Read
+## Runtime Model
 
-- App structure: Swift Package executable using SwiftUI views hosted inside AppKit windows.
-- Desktop window: `AppDelegate.swift` creates a transparent floating `NSPanel`, keeps it above the desktop, handles drag position, click-through hit testing, status item, and settings/chat windows.
-- Existing pet view: `PetView.swift` renders bubble/input/pet body. Before this animation system, it loaded a static transparent PNG through `PetImages.image(_:)`, then applied procedural whole-image motion through `PetMotion`.
-- Existing state: `PetRuntime.swift` owns high-frequency pet state, bubbles, selected character id, speech, file reaction, and feed actions.
-- Existing static image fallback: `PetImages.swift` reads `~/Library/Application Support/Amigo/pets/{name}.png`.
+- `PetRuntime.swift` owns the selected character, current frames, frame rate, direction, bubble state, and fallback motion.
+- `PetView.swift` renders generated frames first, then a static transparent PNG, then the placeholder pet.
+- `SpriteGen.swift` owns the generation pipeline: image edit request, 3x3 slicing, edge-connected white removal, centroid and baseline registration, then `frame-0...8.png` persistence.
+- `PetImages.swift` installs bundled starter characters and frames into `~/Library/Application Support/Amigo/pets/` on first launch.
 
-## New Files
+## Asset Contract
 
-- `Sources/Amigo/PetAnimation.swift`: action enum, profile/config models, Bundle asset loader, frame clip cache, and `PetAnimator`.
-- `Sources/Amigo/Resources/Pets/lazy_fish/profile.json`: first animation profile.
-- `Sources/Amigo/Resources/Pets/lazy_fish/{action}/frame_000.png`: prototype pixel frames for the 10 fixed actions.
-- `Sources/Amigo/Resources/Pets/README.md`: 16bit pixel import spec.
+```
+Assets/pets/<character>.png
+Assets/pets/generated/<character>/<action>/frame-0.png
+~/Library/Application Support/Amigo/pets/<character>.png
+~/Library/Application Support/Amigo/pets/generated/<character>/<action>/frame-0.png
+```
 
-## Modified Files
+The package script copies `Assets/pets/` into the app bundle. User-created content always lives under Application Support and is never written back into the repository.
 
-- `Package.swift`: processes `Sources/Amigo/Resources` as Swift Package resources.
-- `PetRuntime.swift`: owns a `PetAnimator`, loads the selected character, maps legacy `PetState` to `PetAction`, and exposes debug playback.
-- `PetView.swift`: prefers animated frames when present, keeps old static PNG / code cat fallback, disables interpolation for pixel frames, and adds a right-click action debug menu.
-- `AppDelegate.swift`: switches character changes through `PetRuntime.setCharacter(_:)`.
+## Playback Contract
 
-## Behavior Contract
+- Built-in actions are `work`, `phone`, `think`, `idle`, `run`, and `walk`.
+- Generated clips use a 3x3 sheet and produce nine frames.
+- Frame rate is calculated from `PetAnimAction.loopSeconds`, capped at 20 fps, so older four-frame clips remain compatible.
+- Missing frames fall back to the static character image and, for dragging, procedural movement.
+- Registration aligns the alpha centroid horizontally and the base vertically to reduce visible shaking.
 
-- Missing profile or missing action frames do not crash the app.
-- If a selected character has no animation profile, Amigo keeps the old static PNG path.
-- Loop actions repeat.
-- Non-loop actions return to `idle_stand`, except actions marked `holdLastFrame`.
-- Timer playback runs on the main run loop and is invalidated before replacement.
-- UI frame updates are main-thread isolated.
+## Generation Notes
 
-## Next Step
-
-Replace the prototype `lazy_fish` PNG frames with real 16bit pixel-art frames exported from Aseprite or an image model, keeping the same folder and filename contract.
+The model can still produce invalid poses or inconsistent frames. The current pipeline normalizes position only; it does not yet reject malformed frames or score character similarity. Treat a generated clip as user-reviewable output, not as an automatically trusted asset.

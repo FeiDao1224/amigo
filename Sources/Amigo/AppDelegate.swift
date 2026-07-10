@@ -56,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         chat.onInferred = { [weak state] items in state?.addInferred(items) }
         chat.isStealth = { [weak state] in state?.config.stealth ?? false }
+        chat.shouldInferMemory = { [weak state] in state?.config.autoMemory ?? false }
+        state.onLocalContentWiped = { [weak self] in self?.chat.clear() }
 
 
         setupStatusItem()
@@ -213,7 +215,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             runtime.facingLeft = false
             let now = Date().timeIntervalSinceReferenceDate
-            if now - lastFrontCheck > 0.5 { frontActive = SystemInfo.frontApp() != nil; lastFrontCheck = now }
+            if state.config.senseFrontApp, now - lastFrontCheck > 0.5 {
+                frontActive = SystemInfo.frontApp() != nil
+                lastFrontCheck = now
+            } else if !state.config.senseFrontApp {
+                frontActive = false
+            }
             runtime.showAction(frontActive ? "work" : state.config.activeAction)   // 用电脑→工作 / 桌面空→默认
         }
     }

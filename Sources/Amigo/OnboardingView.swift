@@ -23,7 +23,7 @@ struct OnboardingView: View {
                 Button("先去配模型") { onConfigureModel() }.buttonStyle(.borderedProminent)
                 Button("开始使用") { onDone() }
             }
-            Text(License.enforced ? "免费试用 7 天，激活后长期使用。数据只存本机，不上传。"
+            Text(License.enforced ? "免费试用 15 天，首次联网激活后可离线使用。数据只存本机，不上传。"
                                    : "完全免费使用。你的 API Key 和数据只存本机，不上传。")
                 .font(.caption2).foregroundStyle(.secondary)
         }

@@ -13,7 +13,7 @@
 - **规模**：`Sources/Amigo/` 共 **25 个 .swift、约 3591 行**。
 - **跑起来**：项目根目录 `swift run`（产物在 `.build/arm64-apple-macosx/debug/Amigo`）。菜单栏出现爪印图标、桌面右下角出现宠物。
 - **数据**：全部只在本机 `~/Library/Application Support/Amigo/`（含 API Key）。不上传任何服务器。
-- **商业**：默认**免费**（`License.enforced=false` 总开关）；激活码/试用体系已内置但默认关闭。
+- **商业**：开发环境默认免费；正式包可在打包时注入许可证服务器和公钥，首次联网激活后离线验签使用。
 
 ---
 
@@ -42,7 +42,7 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 
 ```
 Sources/Amigo/        全部 App 源码（下面详述）
-Assets/pets/          打包随附的内置形象 PNG + 动作帧（banana_cat / anxious_fish）
+Assets/pets/          打包随附的内置形象 PNG + 动作帧（penguin / cow）
 tools/                打包脚本、图标脚本
 license-server/       自托管激活服务（Node 零依赖 + Docker，可选）
 Docs/                 动画系统说明
@@ -60,7 +60,7 @@ pet-raw/              原始素材（非运行时）
 
 - **`AppState`（AppState.swift）** — `ObservableObject`，持有 `config`（唯一数据源）、memories，被**设置窗**观察。所有“不高频”的状态/业务方法在这（模型管理、形象/动作、激活、记忆、导入等）。
 - **`PetRuntime`（PetRuntime.swift）** — `ObservableObject`，只被**宠物窗**观察的**高频动画状态**（当前帧、fps、朝向、气泡、拖动态…）。刻意和 AppState 分开，避免高频重绘拖累设置窗。
-- **`AppDelegate`（AppDelegate.swift, 403 行，最核心）** — 组装一切：建菜单栏、建宠物窗 `PetPanel`、装 `BehaviorEngine` / `AgentBridge` / `ChatSession`、跑 `cursorTimer`（0.05s）驱动点击穿透+行为动作、处理拖动、点击派发、开设置/聊天/引导窗、Dock 策略。**想理解交互逻辑先读它。**
+- **`AppDelegate`（AppDelegate.swift，最核心）** — 组装一切：建菜单栏、建宠物窗 `PetPanel`、装 `BehaviorEngine` / `ChatSession`、跑 `cursorTimer`（0.05s）驱动点击穿透+行为动作、处理拖动、点击派发、开设置/聊天/引导窗、Dock 策略。**想理解交互逻辑先读它。**
 
 数据流：`config`(磁盘 JSON) → `AppState` → 回调闭包喂给 `PetRuntime` / 引擎 → SwiftUI 视图渲染。用户操作 → AppState 方法改 config → `persist()` 落盘 → 通过 `onXxxChanged` 闭包通知 runtime 刷新。
 
@@ -76,10 +76,10 @@ pet-raw/              原始素材（非运行时）
 - `AppState.swift`(388) — 业务/状态中枢。
 - `Models.swift`(154) — `Config`（全部持久化字段，见 §5）、`Provider`、`CustomPet`、`CustomAction`、`CardData`（人设）、`ConfigStore`（**容错解码**，见 §7）、`Provider.fromImport`（从 ccswitch:// / Codex 配置解析 provider）。
 - `Memory.swift`(30) — 长期记忆模型 + `MemoryStore`。
-- `PetRuntime.swift`(143) — 高频动画状态 + `showAction`（按帧数自适应 fps）+ speak/nudge/handleFile 的 LLM 调用。
+- `PetRuntime.swift` — 高频动画状态 + `showAction`（按帧数自适应 fps）+ `speak` / `nudge` 的 LLM 调用。
 
 ### 宠物窗 / 动画 / 交互
-- `PetView.swift`(115) — 宠物 SwiftUI 视图：气泡/输入框 + 帧动画(`TimelineView`)+ 点击/双击/长按/拖动手势 + 文件拖入。
+- `PetView.swift` — 宠物 SwiftUI 视图：气泡/输入框 + 帧动画(`TimelineView`)+ 点击/双击/长按/拖动手势。
 - `Components.swift`(191) — `VisualEffectView`(毛玻璃)、`PetMotion`/`MoveMotion`(程序位移动画兜底)、气泡形状、`SectionHeader` 等。
 - `BehaviorEngine.swift`(60) — 30s 定时的“主动督促”引擎（久坐/熬夜/离开回来/专注），读系统闲置时长，冒泡。**注意：这只管主动冒泡；拖动/点击穿透/切动作逻辑在 AppDelegate。**
 
@@ -102,10 +102,8 @@ pet-raw/              原始素材（非运行时）
 - `OnboardingView.swift`(44) — 首启引导。
 
 ### 系统集成 / 其它
-- `AgentBridge.swift`(106) — 监控 Claude Code/Codex 等：轮询 `~/Library/Application Support/Amigo/agents/*.json`，装 `bin/agent-hook.sh` 供助手 hook 调用，宠物冒泡告知状态。
-- `License.swift`(31) — 服务器激活调用（`enforced` 总开关、`serverBase`）。
+- `License.swift` — Ed25519 离线许可证验签 + 首次联网激活/在线复验；正式配置从打包 Info.plist 或环境变量读取。
 - `Compliance.swift`(58) — **内容合规红线**：文本红线(`inject`)、图像版权红线(`imageClause`)、用户输入初筛(`screenImagePrompt`)。
-- `Speaker.swift`(17) — 系统 TTS 朗读。
 - `LaunchAtLogin.swift`(38) — 开机启动（SMAppService）。
 
 ---
@@ -113,23 +111,22 @@ pet-raw/              原始素材（非运行时）
 ## 5. 数据模型 & 存储
 
 **存储位置（全部本机）**：`~/Library/Application Support/Amigo/`
-- `config.json` — 见下 `Config`（**含明文 API Key**，只存本地）。
+- `config.json` — 见下 `Config`（不含 API Key；模型 Key 存于 macOS Keychain）。
 - `memories.json` / `chat.json` — 记忆 / 聊天。
 - `pets/<形象>.png` — 形象静态图；`pets/generated/<形象>/<动作>/frame-N.png` — 动作帧。
-- `agents/*.json`、`bin/agent-hook.sh` — 助手监控。
 
 **`Config` 全字段**（改字段务必看 §7 的容错解码，别踩数据丢失坑）：
 ```
-providers[], activeId, dockVisible, proactive, readAloud, proactiveLLM,
-petX/petY, stealth, character(默认 banana_cat), customPets[],
-licenseCode/licenseActivated/licenseExpiresAt/deviceId/installedAt,
+providers[], activeId, dockVisible, proactive, proactiveLLM,
+petX/petY, stealth, character(默认 penguin), customPets[],
+licenseCode/licenseActivated/licenseExpiresAt/licenseReceipt/deviceId/installedAt,
 activeAction, behaviorDriven, mapSlow/mapFast/mapChat,
 customActions[], personas{形象→CardData},
 clickLeft/clickDouble/clickLong/clickRight,
-agentMonitor, senseFrontApp, onboarded, seededDoubleClickChat
+senseFrontApp, autoMemory, onboarded, seededDoubleClickChat
 ```
 
-**形象系统**：内置 `banana_cat`(默认) + `anxious_fish`；用户自定义存 `customPets`（**追加不覆盖**）。选择器里“当前形象置顶”，卡片名字**跟随 `personas[形象].name`**（没设人设名就用默认名）。
+**形象系统**：内置 `penguin`(咕咕嘎嘎，默认) + `cow`(草地牛)；用户自定义存 `customPets`（**追加不覆盖**）。选择器里“当前形象置顶”，卡片名字**跟随 `personas[形象].name`**（没设人设名就用默认名）。
 
 ---
 
@@ -145,12 +142,13 @@ agentMonitor, senseFrontApp, onboarded, seededDoubleClickChat
 
 ## 7. 必读坑 & 约定（省你踩雷）
 
-1. **改 `Config` 字段绝不能想当然**：Swift 合成 Codable 缺字段会**整体解码失败**。`ConfigStore.load()` 已做**容错合并**（strict 失败→把磁盘值 merge 到默认配置再解），所以加字段安全；但**别把这段容错删了**，否则升级会丢用户 API Key / 形象 / 性格。
+1. **改 `Config` 字段绝不能想当然**：Swift 合成 Codable 缺字段会**整体解码失败**。`ConfigStore.load()` 已做**容错合并**（strict 失败→把磁盘值 merge 到默认配置再解），所以加字段安全；但**别把这段容错删了**，否则升级会丢用户模型配置 / 形象 / 性格。旧版明文 API Key 会在启动时迁移到 macOS Keychain。
 2. **命名**：产品/包/数据目录/源码目录全是 **Amigo**。全代码无 lingzai 残留，**唯一例外**是 `AppState.migrateDataDir()`——把旧 `~/Library/Application Support/Lingzai` 一次性搬到 `Amigo`，**不能删**。
 3. **生图能力是硬门槛**：动作/自定义形象生成依赖中转站的 `gpt-image-2 /images/edits`。**Claude/Anthropic key 生不了图**；官方 OpenAI key 要看权限/模型名。评审“为什么某些人生不了动作”多半是这个。
 4. **帧数历史**：4 帧(初版)→16 帧(太抽)→现 **9 帧(3×3)**。旧形象里可能残留 4/16 帧，`loadFrames` 读到缺帧为止、fps 自适应，**混着也能播**；要看新效果需“重生成”。
 5. **两个 ObservableObject 分工**：高频动画状态放 `PetRuntime`、其余放 `AppState`，别混，否则设置窗会被高频重绘拖慢。
 6. **合规红线**：所有 LLM 文本请求走 `LLM.chat` → 自动 `Compliance.inject`；所有生图走 `ImageGen.edit` → 自动加 `imageClause`。新增生成入口记得别绕过。
+7. **收费包不能只改一个 Bool**：必须在打包时同时提供 `AMIGO_LICENSE_ENFORCED=1`、服务器 HTTPS 地址和 Ed25519 公钥。私钥只留在 `license-server` 的数据卷，首次激活返回的签名收据让 App 离线工作。
 
 ---
 
@@ -173,7 +171,7 @@ agentMonitor, senseFrontApp, onboarded, seededDoubleClickChat
 
 **健壮性**
 - 网络错误/超时/中转站各种非标准返回的兜底可以更全（`ImageGen.sanitize` 是起点）。
-- 无单元测试。核心可测逻辑（`Compliance`、`ConfigStore` 容错、`SpriteGen` 切帧/对齐、`Provider.fromImport`）都是纯函数，适合补测试。
+- 当前 SwiftPM 工具链未配置测试框架；核心可测逻辑（`Compliance`、`ConfigStore` 容错、`SpriteGen` 切帧/对齐、`Provider.fromImport`）仍应在测试环境就绪后补齐覆盖。
 
 **产品**
 - “读本机 CC Switch / Codex 配置一键导入”只有 `Provider.fromImport` 雏形，未做自动扫描 + 生图能力标注（见对话记录里的方案讨论）。

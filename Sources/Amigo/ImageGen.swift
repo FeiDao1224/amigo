@@ -1,7 +1,7 @@
 import Foundation
 
 /// OpenAI 兼容图像编辑（gpt-image-2）：直连用户已配置的中转站端点，无需本地 Node 服务。
-/// 复用聊天 provider 的 baseUrl + apiKey；模型固定 gpt-image-2。key 只在内存/本机配置，绝不打印。
+/// 复用聊天 provider 的 baseUrl + apiKey；模型固定 gpt-image-2。Key 从 macOS Keychain 取到内存后使用，绝不打印。
 enum ImageGenError: LocalizedError {
     case noProvider, network(String), http(Int, String), decode
     var errorDescription: String? {

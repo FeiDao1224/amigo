@@ -4,7 +4,16 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/dist/Amigo.app"
 BIN="$ROOT/.build/release/Amigo"
+LICENSE_ENFORCED="${AMIGO_LICENSE_ENFORCED:-0}"
+LICENSE_SERVER="${AMIGO_LICENSE_SERVER:-}"
+LICENSE_PUBLIC_KEY="${AMIGO_LICENSE_PUBLIC_KEY:-}"
 [ -f "$BIN" ] || { echo "先 swift build -c release"; exit 1; }
+if [ "$LICENSE_ENFORCED" = "1" ] && { [ -z "$LICENSE_SERVER" ] || [ -z "$LICENSE_PUBLIC_KEY" ]; }; then
+  echo "正式收费包需要 AMIGO_LICENSE_SERVER 和 AMIGO_LICENSE_PUBLIC_KEY" >&2
+  exit 1
+fi
+LICENSE_ENFORCED_PLIST="<false/>"
+[ "$LICENSE_ENFORCED" = "1" ] && LICENSE_ENFORCED_PLIST="<true/>"
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Amigo"
 cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
@@ -24,6 +33,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>AmigoLicenseEnforced</key>$LICENSE_ENFORCED_PLIST
+  <key>AmigoLicenseServer</key><string>$LICENSE_SERVER</string>
+  <key>AmigoLicensePublicKey</key><string>$LICENSE_PUBLIC_KEY</string>
 </dict></plist>
 PLIST
 # 自签(ad-hoc)：不需要 Apple 账号，避免"已损坏"

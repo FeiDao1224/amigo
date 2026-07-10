@@ -32,14 +32,14 @@ enum PetImages {
                let src = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "pets") {
                 try? fm.copyItem(at: src, to: dst)
             }
-            // 动作帧 pets/generated/<name>/<action>/frame-0..3.png
+            // 动作帧数随资源而定；持续读取直到没有下一帧，兼容后续扩帧。
             for action in ["work", "phone", "think", "idle", "run", "walk"] {
                 let destDir = dir.appendingPathComponent("generated/\(name)/\(action)", isDirectory: true)
-                for i in 0..<4 {
+                for i in 0..<64 {
                     let fdst = destDir.appendingPathComponent("frame-\(i).png")
-                    guard !fm.fileExists(atPath: fdst.path),
-                          let fsrc = Bundle.main.url(forResource: "frame-\(i)", withExtension: "png",
-                                                     subdirectory: "pets/generated/\(name)/\(action)") else { continue }
+                    guard let fsrc = Bundle.main.url(forResource: "frame-\(i)", withExtension: "png",
+                                                     subdirectory: "pets/generated/\(name)/\(action)") else { break }
+                    guard !fm.fileExists(atPath: fdst.path) else { continue }
                     try? fm.createDirectory(at: destDir, withIntermediateDirectories: true)
                     try? fm.copyItem(at: fsrc, to: fdst)
                 }
