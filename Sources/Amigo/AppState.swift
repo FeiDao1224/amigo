@@ -268,7 +268,7 @@ final class AppState: ObservableObject {
         let d = desc.trimmingCharacters(in: .whitespacesAndNewlines)
         if config.customActions.count >= 10 { showToast("动作最多 16 个（内置 6 + 自建 10），先删掉一些再加"); return "" }
         if let reason = Compliance.screenImagePrompt(d + " " + title) { showToast(reason); return "" }   // 版权/法律红线前置初筛
-        let prompt = d + "\n\nRender this as a smooth 16-frame animation loop in a 4x4 grid (read left-to-right, top-to-bottom) on a plain solid white background. Interpolate gentle in-between frames so the loop is fluid and seamless. Detailed 32-bit pixel art, the EXACT same character design, colors and size in every cell; horizontally centered with feet on the SAME horizontal ground line so all 16 frames line up. No text, no letters, no grid lines, no borders."
+        let prompt = d + "\n\nRender this as a smooth 9-frame animation loop in a 3x3 grid (read left-to-right, top-to-bottom) on a plain solid white background. Interpolate gentle in-between frames so the loop is fluid and seamless. In EVERY cell the character stands UPRIGHT and right-side-up — head near the top, feet at the bottom; never rotated, tilted, upside-down or mirrored. Detailed 32-bit pixel art, the EXACT same character design, colors and size in every cell; horizontally centered with feet on the SAME horizontal ground line so all 9 frames line up. No text, no letters, no grid lines, no borders."
         let a = CustomAction(title: title.trimmingCharacters(in: .whitespaces).isEmpty ? "自定义动作" : title, prompt: prompt)
         config.customActions.append(a); persist()
         return a.id

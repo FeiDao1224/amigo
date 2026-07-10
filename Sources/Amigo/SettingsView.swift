@@ -224,7 +224,7 @@ struct SettingsView: View {
             SectionHeader("动作")
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("用当前形象作参考，AI 生成 16 帧像素动作（更连贯）。「一键生成」只做内置 6 个默认动作；自建动作在各自卡片上单独生成。最多 16 个（内置 6 + 自建 10）。动画按形象分别保存、换形象自动切换。点卡片＝设为默认播放。")
+                    Text("用当前形象作参考，AI 生成 9 帧像素动作。「一键生成」只做内置 6 个默认动作；自建动作在各自卡片上单独生成。最多 16 个（内置 6 + 自建 10）。动画按形象分别保存、换形象自动切换。点卡片＝设为默认播放。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     if !state.hasModel {

@@ -31,10 +31,11 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
         }
     }
     var prompt: String {
-        motion + "\n\nRender this as a SMOOTH 16-frame animation loop arranged in a 4x4 grid (read left-to-right, top-to-bottom) on a plain solid white background. "
-        + "The key poses described above are the main beats — interpolate gentle in-between frames so the 16 frames play back as one fluid, seamless loop (frame 16 flows naturally back into frame 1). "
-        + "Detailed 32-bit pixel art, the EXACT same character design, colors and size in every one of the 16 cells. "
-        + "CRITICAL FOR ANIMATION: the character must be horizontally centered with feet resting on the SAME horizontal ground line in every cell, so all 16 frames line up perfectly when looped. "
+        motion + "\n\nRender this as a SMOOTH 9-frame animation loop arranged in a 3x3 grid (read left-to-right, top-to-bottom) on a plain solid white background. "
+        + "The key poses described above are the main beats — interpolate gentle in-between frames so the 9 frames play back as one fluid, seamless loop (frame 9 flows naturally back into frame 1). "
+        + "Detailed 32-bit pixel art, the EXACT same character design, colors and size in every one of the 9 cells. "
+        + "ORIENTATION (must obey): in EVERY cell the character stands UPRIGHT and right-side-up — head near the TOP of the cell, feet at the BOTTOM; never rotated, tilted, upside-down, or mirrored; keep the exact same upright orientation and scale in all 9 cells. "
+        + "CRITICAL FOR ANIMATION: horizontally centered with feet resting on the SAME horizontal ground line in every cell, so all 9 frames line up perfectly when looped. "
         + "Do NOT draw any text, letters, numbers, labels, watermarks, grid lines, borders or frame dividers."
     }
 }
@@ -76,7 +77,7 @@ enum SpriteGen {
         }
     }
 
-    static let gridCols = 4, gridRows = 4, frameCount = 16   // 4×4 = 16 帧，动画更连贯
+    static let gridCols = 3, gridRows = 3, frameCount = 9    // 3×3 = 9 帧（格子更大、更稳，不易抽动）
 
     private static func sliceRegisterSave(_ sheet: CGImage, character: String, action: String) throws -> Int {
         let cw = sheet.width / gridCols, ch = sheet.height / gridRows

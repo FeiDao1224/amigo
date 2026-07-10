@@ -312,16 +312,21 @@ struct CustomPetCard: View {
                     Toggle("拟人化（没手脚的自动加脸 + 四肢，好做动作）", isOn: $anthro)
                         .toggleStyle(.checkbox).font(.system(size: 11))
                 }
+                // 像素程度：单独一小块，不铺满窗口
                 HStack(spacing: 8) {
                     Text("像素程度").font(.system(size: 11)).foregroundStyle(.secondary)
                     Text("细腻").font(.caption2).foregroundStyle(.secondary)
                     Slider(value: $level, in: 0...1) { editing in if !editing && !hasModel { rebuild() } }
+                        .frame(width: 140)
                     Text("块状").font(.caption2).foregroundStyle(.secondary)
                     if !hasModel {
                         Toggle("抠背景", isOn: $cutout).toggleStyle(.checkbox).font(.system(size: 11))
                             .onChange(of: cutout) { _ in rebuild() }
                     }
                 }
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                .fixedSize(horizontal: true, vertical: false)
 
                 HStack(spacing: 10) {
                     ForEach(Array(images.enumerated()), id: \.offset) { idx, img in
