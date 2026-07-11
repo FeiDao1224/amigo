@@ -23,7 +23,7 @@ final class AppState: ObservableObject {
             if config.clickDouble == "none" { config.clickDouble = "chat" }
             config.seededDoubleClickChat = true
         }
-        migrateProviderSecrets()
+        migrateProviderSecretsBack()
         migrateCharacters()
         ConfigStore.save(config)
         licensed = License.verify(config.licenseReceipt, device: config.deviceId).ok
@@ -104,59 +104,43 @@ final class AppState: ObservableObject {
         persist()
     }
 
-    private func resolvedProvider(_ provider: Provider) -> Provider {
-        var resolved = provider
-        if resolved.apiKey.isEmpty { resolved.apiKey = KeychainStore.read(resolved.id) ?? "" }
-        return resolved
-    }
-
     func activeProvider() -> Provider? {
-        let provider = config.providers.first { $0.id == config.activeId } ?? config.providers.first
-        return provider.map(resolvedProvider)
+        config.providers.first { $0.id == config.activeId } ?? config.providers.first
     }
     private func persist() { ConfigStore.save(config) }
 
-    private func migrateProviderSecrets() {
-        for index in config.providers.indices where !config.providers[index].apiKey.isEmpty {
-            let provider = config.providers[index]
-            if KeychainStore.save(provider.apiKey, account: provider.id) {
-                config.providers[index].apiKey = ""
-            } else {
-                showToast("无法把模型 Key 存入 macOS Keychain，已保留原配置")
+    /// 一次性：把曾经存进 Keychain 的 key 取回到本地 config（改回“只存本地”）。
+    /// 只有成功读回才删 Keychain——读不到就保留，绝不因读取失败而销毁 key。
+    private func migrateProviderSecretsBack() {
+        var changed = false
+        for i in config.providers.indices where config.providers[i].apiKey.isEmpty {
+            let id = config.providers[i].id
+            if let k = KeychainStore.read(id), !k.isEmpty {
+                config.providers[i].apiKey = k
+                KeychainStore.delete(id)
+                changed = true
             }
         }
+        if changed { ConfigStore.save(config) }
     }
 
     func hasCredential(for providerId: String) -> Bool {
-        !((KeychainStore.read(providerId) ?? "").isEmpty)
-            || config.providers.first(where: { $0.id == providerId })?.apiKey.isEmpty == false
+        config.providers.first(where: { $0.id == providerId })?.apiKey.isEmpty == false
     }
-
     func credential(for providerId: String) -> String? {
-        KeychainStore.read(providerId) ?? config.providers.first(where: { $0.id == providerId })?.apiKey
+        config.providers.first(where: { $0.id == providerId })?.apiKey
     }
 
     @discardableResult
     func upsertProvider(id: String?, name: String, baseUrl: String, model: String, apiKey: String?) -> Bool {
         if let id, let i = config.providers.firstIndex(where: { $0.id == id }) {
-            if let apiKey, !apiKey.isEmpty, !KeychainStore.save(apiKey, account: id) {
-                showToast("模型 Key 保存失败，请检查 macOS Keychain 后重试")
-                return false
-            }
             config.providers[i].name = name
             config.providers[i].baseUrl = baseUrl
             config.providers[i].model = model
-            config.providers[i].apiKey = ""
+            if let apiKey, !apiKey.isEmpty { config.providers[i].apiKey = apiKey }   // 留空=不改原 key
         } else {
-            guard let apiKey, !apiKey.isEmpty else {
-                showToast("请填写 API Key")
-                return false
-            }
-            let p = Provider(name: name, baseUrl: baseUrl, model: model, apiKey: "")
-            guard KeychainStore.save(apiKey, account: p.id) else {
-                showToast("模型 Key 保存失败，请检查 macOS Keychain 后重试")
-                return false
-            }
+            guard let apiKey, !apiKey.isEmpty else { showToast("请填写 API Key"); return false }
+            let p = Provider(name: name, baseUrl: baseUrl, model: model, apiKey: apiKey)
             config.providers.append(p)
             if config.activeId.isEmpty { config.activeId = p.id }
         }
@@ -165,22 +149,14 @@ final class AppState: ObservableObject {
     }
     @discardableResult
     func importProvider(from raw: String) -> Bool {
-        guard var p = Provider.fromImport(raw) else { return false }
-        if !p.apiKey.isEmpty {
-            guard KeychainStore.save(p.apiKey, account: p.id) else {
-                showToast("导入失败：无法把模型 Key 存入 macOS Keychain")
-                return false
-            }
-            p.apiKey = ""
-        }
-        config.providers.append(p)
+        guard let p = Provider.fromImport(raw) else { return false }
+        config.providers.append(p)          // key 直接存本地 config
         if config.activeId.isEmpty { config.activeId = p.id }
         persist()
         return true
     }
     func deleteProvider(_ id: String) {
         config.providers.removeAll { $0.id == id }
-        KeychainStore.delete(id)
         if config.activeId == id { config.activeId = config.providers.first?.id ?? "" }
         persist()
     }

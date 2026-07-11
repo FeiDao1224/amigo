@@ -35,7 +35,7 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
 
     /// 把动作描述拼上统一的网格 / 朝向 / 解剖约束，得到最终生图提示词
     static func fullPrompt(_ description: String) -> String {
-        description + "\n\nRender this as a SMOOTH 9-frame animation loop arranged in a 3x3 grid (read left-to-right, top-to-bottom) on a plain solid white background. "
+        description + "\n\nRender this as a SMOOTH 9-frame animation loop arranged in a 3x3 grid (read left-to-right, top-to-bottom) on a SOLID FLAT MAGENTA background (pure #FF00FF bright pink-purple, a chroma-key color that will be removed later). Do NOT use this magenta color anywhere on the character itself. "
         + "The key poses described above are the main beats — interpolate gentle in-between frames so the 9 frames play back as one fluid, seamless loop (frame 9 flows naturally back into frame 1). "
         + "Detailed 32-bit pixel art, the EXACT same character design, colors and size in every one of the 9 cells. "
         + "ORIENTATION (must obey): in EVERY cell the character stands UPRIGHT and right-side-up — head near the TOP of the cell, feet at the BOTTOM; never rotated, tilted, upside-down, or mirrored; keep the exact same upright orientation and scale in all 9 cells. "
@@ -93,7 +93,7 @@ enum SpriteGen {
         let cells = rects.compactMap { sheet.cropping(to: $0) }
         guard cells.count == frameCount else { throw SpriteGenError.decode }
 
-        let clean = dropOutlierFrames(cells.map { removeWhite($0) ?? $0 })   // 剔除穿模/画崩的离群帧
+        let clean = dropOutlierFrames(cells.map { removeChroma($0) ?? $0 })   // 去背景 + 剔除穿模/画崩的离群帧
         let registered = register(clean)
 
         let d = dir(character: character, action: action)
@@ -189,40 +189,46 @@ enum SpriteGen {
         return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
     }
 
-    /// 四边 flood-fill 去白底（只去与边相连的白，保留内部白）
-    private static func removeWhite(_ img: CGImage) -> CGImage? {
+    /// 自适应去背景：以四角颜色为背景色，flood-fill 去掉与边相连、颜色接近背景的像素，再抹掉贴边残色。
+    /// 用洋红等 chroma 背景时，白色角色不会被误当背景吃掉（这就是白牛/白肚企鹅抠图发白的修复）。
+    private static func removeChroma(_ img: CGImage) -> CGImage? {
         let w = img.width, h = img.height
         guard let c = ctx(w, h), let buf = { () -> UnsafeMutableRawPointer? in
             c.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h)); return c.data
         }() else { return nil }
         let px = buf.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        // 四角平均 = 背景色
+        let corners = [0, w - 1, (h - 1) * w, (h - 1) * w + w - 1]
+        var sr = 0, sg = 0, sb = 0
+        for i in corners { let o = i * 4; sr += Int(px[o]); sg += Int(px[o+1]); sb += Int(px[o+2]) }
+        let bgR = sr / 4, bgG = sg / 4, bgB = sb / 4
+        func near(_ i: Int, _ tol: Int) -> Bool {
+            let o = i * 4
+            return px[o+3] > 0 && abs(Int(px[o]) - bgR) <= tol && abs(Int(px[o+1]) - bgG) <= tol && abs(Int(px[o+2]) - bgB) <= tol
+        }
         var seen = [Bool](repeating: false, count: w * h)
         var st = [Int]()
-        func white(_ i: Int) -> Bool { let o = i*4; return px[o] > 224 && px[o+1] > 224 && px[o+2] > 224 }
         for x in 0..<w { st.append(x); st.append((h-1)*w + x) }
         for y in 0..<h { st.append(y*w); st.append(y*w + w-1) }
         while let i = st.popLast() {
             if seen[i] { continue }; seen[i] = true
-            if !white(i) { continue }
+            if !near(i, 50) { continue }
             let o = i*4; px[o]=0; px[o+1]=0; px[o+2]=0; px[o+3]=0
             let x = i % w, y = i / w
             if x+1 < w { st.append(i+1) }; if x > 0 { st.append(i-1) }
             if y+1 < h { st.append(i+w) }; if y > 0 { st.append(i-w) }
         }
-        // 去白边：把仍贴着透明、且接近白/浅灰的边缘像素也抹掉（消除运动时漏白）；内部白不挨透明，保住
+        // 抹掉贴着透明、颜色仍接近背景的残边（消除运动漏色）
         for _ in 0..<2 {
             var kill = [Int]()
-            for i in 0..<(w * h) {
-                let o = i * 4
-                if px[o+3] == 0 { continue }
-                guard min(px[o], px[o+1], px[o+2]) > 180 else { continue }   // 只处理接近白/浅灰
+            for i in 0..<(w * h) where near(i, 90) {
                 let x = i % w, y = i / w
                 let edge = (x+1 < w && px[(i+1)*4+3] == 0) || (x > 0 && px[(i-1)*4+3] == 0)
                     || (y+1 < h && px[(i+w)*4+3] == 0) || (y > 0 && px[(i-w)*4+3] == 0)
-                if edge { kill.append(o) }
+                if edge { kill.append(i*4) }
             }
             if kill.isEmpty { break }
-            for o in kill { px[o] = 0; px[o+1] = 0; px[o+2] = 0; px[o+3] = 0 }
+            for o in kill { px[o]=0; px[o+1]=0; px[o+2]=0; px[o+3]=0 }
         }
         return c.makeImage()
     }

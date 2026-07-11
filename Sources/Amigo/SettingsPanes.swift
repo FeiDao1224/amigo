@@ -16,7 +16,7 @@ struct ModelPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("模型")
-            Text("配置一个大模型服务：API 端点 + Key + 模型。Key 保存在 macOS Keychain。")
+            Text("配置一个大模型服务：API 端点 + Key + 模型。Key 只存在本机配置里。")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             // 已保存
@@ -29,7 +29,7 @@ struct ModelPane: View {
                     ForEach(Array(state.config.providers.enumerated()), id: \.element.id) { idx, p in
                         let active = (state.config.activeId == p.id)
                             || (state.config.activeId.isEmpty && idx == 0)
-                        GRow(title: p.name, subtitle: (p.model.isEmpty ? "中转站默认模型" : p.model) + (state.hasCredential(for: p.id) ? " · Key 已安全保存" : " · ⚠ 未填 Key")) {
+                        GRow(title: p.name, subtitle: (p.model.isEmpty ? "中转站默认模型" : p.model) + (state.hasCredential(for: p.id) ? " · Key 已保存" : " · ⚠ 未填 Key")) {
                             HStack(spacing: 6) {
                                 Button(active ? "✓ 已启用" : "启用") { state.setActive(p.id) }
                                     .buttonStyle(.borderedProminent).tint(active ? .pink : .gray).controlSize(.small)
@@ -45,7 +45,7 @@ struct ModelPane: View {
 
             // 新增 / 编辑
             SectionHeader(editingId == nil ? "新增配置" : "编辑配置")
-            Text("填 API 端点 + Key + 模型（OpenAI 兼容端点 / 中转站均可）。Key 保存到 macOS Keychain。")
+            Text("填 API 端点 + Key + 模型（OpenAI 兼容端点 / 中转站均可）。Key 只存在本机配置里。")
                 .font(.caption).foregroundStyle(.secondary)
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
