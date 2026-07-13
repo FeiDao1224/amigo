@@ -19,7 +19,7 @@ struct SettingsView: View {
         .init(key: "character",title: "形象", subtitle: "角色 · 自定义 · 动作",  icon: "pawprint.fill",          color: .pink),
         .init(key: "persona",  title: "性格", subtitle: "名字 · 人设 · 记忆 · 隐私", icon: "heart.text.square.fill", color: .purple),
         .init(key: "interact", title: "交互", subtitle: "点击 · 拖拽 · 空闲",     icon: "hand.tap.fill",          color: .teal),
-        .init(key: "about",    title: "关于", subtitle: "版本 · 激活",          icon: "info.circle.fill",       color: .gray),
+        .init(key: "about",    title: "关于", subtitle: "版本 · 开源",          icon: "info.circle.fill",       color: .gray),
     ]
 
     var body: some View {
@@ -332,9 +332,10 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("关于")
             GroupCard {
-                GRow(title: "Amigo", subtitle: "被你真实行为驱动的桌面搭子") { Text("v0.1 原生内测").foregroundStyle(.secondary) }
+                GRow(title: "Amigo", subtitle: "被你真实行为驱动的桌面搭子 · 开源免费") { Text("v0.2").foregroundStyle(.secondary) }
+                RowDivider()
+                GRow(title: "开源仓库", subtitle: "github.com/FeiDao1224/amigo") { EmptyView() }
             }
-            ProPane(state: state)
         }
     }
 }

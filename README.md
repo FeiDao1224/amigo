@@ -5,7 +5,7 @@
 - 原生 SwiftPM + AppKit/SwiftUI，无 Xcode 工程，`swift build` 直接跑
 - BYOK：接你自己的大模型端点（OpenAI 兼容），聊天 / 生成形象 / 生成动作都直连，数据只走你和你选的模型
 - 行为驱动：久坐 / 熬夜 / 拖动 / 打开软件 → 自动切动作、主动冒泡
-- 默认免费；激活码体系已内置（自托管、可选，默认关闭）
+- 完全免费、开源（MIT）；无内购、无账号、无联网校验，数据只走你和你选的模型
 
 > 说明：产品 / App / Bundle(`com.amigo.app`) / 数据目录 / 源码目录(`Sources/Amigo`) 全部统一为 **Amigo**。
 
@@ -38,27 +38,6 @@ bash tools/package-app.sh          # 产出 dist/Amigo.app
 设置 →「模型」页填端点 + Key（支持智谱 / DeepSeek / Kimi / 通义 / 硅基流动，或任意 OpenAI 兼容中转站）。
 没配模型也能用内置形象自带的动作；**生成新动作 / 自定义形象**才需要模型。
 
-## 激活服务（可选，默认免费）
-
-开发运行默认免费。正式收费包在打包时注入许可证配置，不改源码：
-
-1. 起自托管激活服务并生成 Ed25519 签名密钥。
-2. 生成公钥写入正式包；私钥只留在服务器。
-3. 用下面环境变量打包。用户首次激活需要联网，签名收据保存后可离线使用。
-
-```bash
-cd license-server && docker compose up -d --build      # :8787，licenses.json 持久化到 ./data
-docker compose exec amigo-license node admin.js issue --plan pro --devices 1 --days 365   # 发码
-
-export AMIGO_LICENSE_ENFORCED=1
-export AMIGO_LICENSE_SERVER=https://license.example.com
-export AMIGO_LICENSE_PUBLIC_KEY='keygen 命令输出的公钥'
-swift build -c release
-bash tools/package-app.sh
-```
-
-详见 [license-server/README.md](license-server/README.md)。
-
 ## 内容合规红线
 
 生成能力内置了合规护栏（[Sources/Amigo/Compliance.swift](Sources/Amigo/Compliance.swift)）：
@@ -70,7 +49,7 @@ bash tools/package-app.sh
 ## 数据位置
 
 全部只存本机：`~/Library/Application Support/Amigo/`
-（`config.json`、`pets/` 形象与动作帧、`memories.json`、`chat.json`）。模型 API Key 存在 macOS Keychain，不写入 `config.json`。
+（`config.json`、`pets/` 形象与动作帧、`memories.json`、`chat.json`）。模型 API Key 只存本机 `config.json`（`chmod 600`），不上云、不进 Keychain。
 设置 →「性格 · 隐私」里可一键在访达打开 / 导出 / 清空。
 
 ## 目录结构
@@ -79,7 +58,6 @@ bash tools/package-app.sh
 Sources/Amigo/     App 源码（AppKit + SwiftUI）
 Assets/pets/         打包随附的内置形象 + 动作帧
 tools/               package-app.sh（打包自签）、make-icon.swift
-license-server/      自托管激活服务（Node 零依赖 + Docker）
 Docs/                动画系统等说明
 AppIcon.icns         App 图标
 ```

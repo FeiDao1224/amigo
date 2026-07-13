@@ -96,12 +96,6 @@ struct Config: Codable {
     var stealth: Bool = false           // 隐身模式：暂停观察与主动打扰
     var character: String = "penguin"        // 默认形象：咕咕嘎嘎
     var customPets: [CustomPet] = []         // 用户自建的形象（可多个，追加不覆盖）
-    var licenseCode: String = ""             // 激活码
-    var licenseActivated = false             // 已激活(服务器确认)
-    var licenseExpiresAt: Double? = nil       // 到期 epoch ms（null=永久）
-    var licenseReceipt: String = ""          // 服务端 Ed25519 签名，离线验签使用
-    var deviceId: String = ""                // 本机标识（激活绑定）
-    var installedAt: Double? = nil            // 首次安装 epoch s（试用期起算）
     var activeAction: String = "idle"   // 当前播放的 AI 生成动作（行为驱动关闭时用）
     var behaviorDriven: Bool = true     // 行为驱动：按交互自动切动作
     var mapDrag: String = "walk"        // 拖动 → 播放的动作（拖越快播越快）

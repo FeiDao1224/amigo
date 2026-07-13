@@ -245,66 +245,9 @@ private struct CustomAddCard: View {
     }
 }
 
-// 激活页（服务器激活 + 试用状态）
-struct ProPane: View {
-    @ObservedObject var state: AppState
-    @State private var code = ""
-    @State private var busy = false
-    @State private var msg = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(License.enforced ? "激活" : "版本")
-            GroupCard {
-                if !License.enforced {
-                    GRow(title: "免费版", subtitle: "当前全部功能免费使用，无需激活码。") { EmptyView() }
-                } else if state.licensed && !state.licenseExpired {
-                    GRow(title: "已激活 ✓", subtitle: expiryText) {
-                        Button("注销") { state.deactivate(); code = ""; msg = "" }.controlSize(.small)
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(trialText).font(.system(size: 12)).foregroundStyle(state.entitled ? Color.secondary : Color.red)
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack {
-                            TextField("输入激活码 LZ-…", text: $code).textFieldStyle(.roundedBorder)
-                            Button(busy ? "激活中…" : "激活") { activate() }
-                                .buttonStyle(.borderedProminent).disabled(busy || code.trimmingCharacters(in: .whitespaces).isEmpty)
-                        }
-                        if !msg.isEmpty { Text(msg).font(.caption).foregroundStyle(msg == "已激活" ? .green : .red) }
-                        Text("激活码在购买后获得，一码绑定本机；服务器可吊销/到期。").font(.caption2).foregroundStyle(.secondary)
-                    }.padding(14)
-                }
-            }
-        }
-    }
-
-    private var expiryText: String {
-        if let e = state.config.licenseExpiresAt { return "有效期至 " + fmt(e) }
-        return "永久授权，感谢支持"
-    }
-    private var trialText: String {
-        state.entitled
-            ? "免费试用中，还剩 \(state.trialDaysLeft) 天。输入激活码可解锁并绑定本机。"
-            : "试用已到期，输入激活码后继续使用。"
-    }
-    private func fmt(_ ms: Double) -> String {
-        let d = DateFormatter(); d.dateFormat = "yyyy-MM-dd"
-        return d.string(from: Date(timeIntervalSince1970: ms / 1000))
-    }
-    private func activate() {
-        busy = true; msg = ""
-        Task { @MainActor in
-            let err = await state.activate(code: code)
-            busy = false; msg = err.isEmpty ? "已激活" : err
-        }
-    }
-}
-
 // 自定义形象：≤3 张参考图 → 有模型走 AI 精修(拟人化加四肢) / 无模型走本地像素化
 struct CustomPetCard: View {
     @ObservedObject var state: AppState
-    var onUpgrade: () -> Void = {}
     @State private var images: [NSImage] = []
     @State private var preview: NSImage?
     @State private var level: Double = 0.3    // 偏细腻：更能保留参考图的神态/花纹

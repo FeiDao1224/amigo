@@ -5,7 +5,6 @@ import AppKit
 final class AppState: ObservableObject {
     @Published var config: Config
     @Published var memories: [Memory] = []
-    @Published var licensed = false               // 已激活 Pro
     @Published var toast = ""                      // 顶部通知(错误等)
     private var toastSeq = 0
     func showToast(_ s: String) {
@@ -17,8 +16,6 @@ final class AppState: ObservableObject {
     init() {
         AppState.migrateDataDir()          // 改名 Amigo：把旧 Lingzai 数据目录整体搬过来（一次性、原子）
         config = ConfigStore.load(); memories = MemoryStore.load()
-        if config.deviceId.isEmpty { config.deviceId = UUID().uuidString }
-        if config.installedAt == nil { config.installedAt = Date().timeIntervalSince1970 }
         if !config.seededDoubleClickChat {            // 一次性：旧默认"双击=无" → "双击=打开对话"
             if config.clickDouble == "none" { config.clickDouble = "chat" }
             config.seededDoubleClickChat = true
@@ -26,7 +23,6 @@ final class AppState: ObservableObject {
         migrateProviderSecretsBack()
         migrateCharacters()
         ConfigStore.save(config)
-        licensed = License.verify(config.licenseReceipt, device: config.deviceId).ok
     }
 
     /// 一次性：把旧「Lingzai」数据目录改名为「Amigo」，保住已配置的模型 Key / 形象 / 记忆
@@ -51,57 +47,6 @@ final class AppState: ObservableObject {
         // 当前形象若指向已删除/不存在的形象 → 回默认
         let valid = PetImages.builtinCharacters + config.customPets.map { $0.id }
         if !valid.contains(config.character) { config.character = "penguin" }
-    }
-
-    // MARK: 激活 / 试用（服务器激活，后台自托管）
-    let trialDays = 15
-    var trialEndsAt: Date { Date(timeIntervalSince1970: config.installedAt ?? Date().timeIntervalSince1970).addingTimeInterval(Double(trialDays) * 86400) }
-    var withinTrial: Bool { Date() < trialEndsAt }
-    var trialDaysLeft: Int { max(0, Int(ceil(trialEndsAt.timeIntervalSinceNow / 86400))) }
-    var licenseExpired: Bool {
-        guard let expiresAt = License.verify(config.licenseReceipt, device: config.deviceId).expiresAt else { return false }
-        return Date().timeIntervalSince1970 * 1000 > expiresAt
-    }
-    /// 能不能用：开发版默认免费；正式版由离线验签的许可证或 15 天试用决定。
-    var entitled: Bool { !License.enforced || License.verify(config.licenseReceipt, device: config.deviceId).ok || withinTrial }
-
-    /// 输入激活码 → 服务器激活并绑定本机；返回 "" 成功，否则错误文案
-    @MainActor
-    func activate(code: String) async -> String {
-        let c = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !c.isEmpty else { return "先填激活码" }
-        let r = await License.call("/api/activate", code: c, device: config.deviceId)
-        if r.ok, let receipt = r.receipt {
-            let verified = License.verify(receipt, device: config.deviceId)
-            guard verified.ok else { return verified.error ?? "许可证验证失败" }
-            config.licenseCode = c; config.licenseReceipt = receipt
-            config.licenseActivated = true; config.licenseExpiresAt = verified.expiresAt
-            licensed = true; persist(); return ""
-        }
-        return r.error == "__offline__" ? "需要联网完成首次激活" : (r.error ?? "激活失败")
-    }
-    func deactivate() {
-        config.licenseCode = ""; config.licenseReceipt = ""
-        config.licenseActivated = false; config.licenseExpiresAt = nil; persist(); licensed = false
-    }
-    /// 启动时可联网复验撤销/到期；连不上时保留已验签的本地许可证。
-    @MainActor
-    func revalidate() async {
-        let local = License.verify(config.licenseReceipt, device: config.deviceId)
-        licensed = local.ok
-        config.licenseActivated = local.ok
-        config.licenseExpiresAt = local.expiresAt
-        guard !config.licenseCode.isEmpty else { persist(); return }
-        let r = await License.call("/api/validate", code: config.licenseCode, device: config.deviceId)
-        if r.error == "__offline__" || r.error == "__server__" { persist(); return }
-        guard r.ok, let receipt = r.receipt else {
-            licensed = false; config.licenseActivated = false; config.licenseReceipt = ""; persist(); return
-        }
-        let verified = License.verify(receipt, device: config.deviceId)
-        licensed = verified.ok; config.licenseActivated = verified.ok
-        config.licenseExpiresAt = verified.expiresAt
-        config.licenseReceipt = verified.ok ? receipt : ""
-        persist()
     }
 
     func activeProvider() -> Provider? {
