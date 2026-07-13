@@ -1,25 +1,49 @@
-# Amigo · 桌面搭子
+<div align="center">
 
-被你真实行为驱动的原生 macOS 桌宠。一只住在桌面、会观察你的状态、陪你干活、还能被你调教性格的小家伙。
+# 🐾 Amigo · 桌面搭子
 
-- 原生 SwiftPM + AppKit/SwiftUI，无 Xcode 工程，`swift build` 直接跑
-- BYOK：接你自己的大模型端点（OpenAI 兼容），聊天 / 生成形象 / 生成动作都直连，数据只走你和你选的模型
-- 行为驱动：久坐 / 熬夜 / 拖动 / 打开软件 → 自动切动作、主动冒泡
-- 完全免费、开源（MIT）；无内购、无账号、无联网校验，数据只走你和你选的模型
+**一只住在你 Mac 桌面、会观察你状态、陪你干活、还能被你调教性格的小家伙。**
 
-> 说明：产品 / App / Bundle(`com.amigo.app`) / 数据目录 / 源码目录(`Sources/Amigo`) 全部统一为 **Amigo**。
+完全免费 · 开源 · 数据只留在你自己电脑上
+
+![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)
+![license](https://img.shields.io/badge/license-MIT-green)
+![price](https://img.shields.io/badge/price-free%20%C2%B7%20no%20IAP-orange)
+
+</div>
+
+> 📸 **演示位**：录一段「拖着它满屏跑 / 长按聊天 / 一键换装」的 GIF 放这里，路人第一眼就能看懂。
+> <!-- 有了动图后：取消下一行注释、删掉这段提示 —— ![Amigo 演示](Docs/demo.gif) -->
 
 ---
 
-## 开发运行
+## 这是什么
+
+Amigo 是一只常驻 macOS 桌面的宠物。它不只是个动图——它**看得到你此刻在干嘛**（久坐、熬夜、打开了什么软件），然后自己切换动作、时不时冒个泡提醒你；你也可以长按它直接聊天，或者上传几张照片让 AI 把它捏成**你专属的像素形象**。
+
+- 🖐️ **能拖能玩**：拖着它在整个桌面上跑，拖得越快跑得越欢
+- 💬 **能聊天**：长按开对话，接你自己的大模型，聊多了它会慢慢记住你
+- 🎨 **能换装**：内置咕咕嘎嘎（企鹅）和草地牛，也能上传照片生成专属形象和动作
+- 🔒 **够安心**：完全免费开源，无账号无内购，API Key 和聊天记录只存在你本机
+
+## 30 秒上手
+
+**普通用户（下载即用）**
+
+1. 去 [Releases](../../releases) 下载 `Amigo.zip`，解压
+2. 右键 `Amigo.app` →「打开」（首次被拦是因为没买苹果签名，右键打开即可，之后双击就行）
+3. 菜单栏冒出爪印图标、桌面右下角蹦出宠物 —— **长按它就能开聊**
+
+**开发者（跑源码）**
 
 ```bash
-swift build            # 编译
-swift run              # 直接跑（菜单栏出现爪印图标，桌面出现宠物）
+git clone https://github.com/FeiDao1224/amigo.git
+cd amigo && swift run          # 菜单栏出现爪印图标，桌面出现宠物
 ```
 
-- 需要 macOS 13+、Swift 6.x 工具链
-- 首次运行会把内置形象（香蕉猫 + 看表鱼）连动作帧拷到数据目录，开箱即动
+需要 macOS 13+、Swift 6.x 工具链（原生 SwiftPM + AppKit/SwiftUI，无 Xcode 工程）。首次运行会自动装好内置形象、开箱即动。
+
+---
 
 ## 打包分发（.app）
 
