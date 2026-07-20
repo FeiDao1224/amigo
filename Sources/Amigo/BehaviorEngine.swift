@@ -1,6 +1,6 @@
 import AppKit
 
-/// 行为驱动闭环：读系统闲置/活跃时长 + 作息 → 让阿豆主动冒泡督促。
+/// 行为驱动闭环：读系统闲置 / 活跃时长 + 作息 → 让桌宠主动冒泡督促。
 /// 防打扰（PRD §11）：只在你在电脑前时冒泡；全局最短间隔；每条规则各自冷却。
 @MainActor
 final class BehaviorEngine {
@@ -41,7 +41,7 @@ final class BehaviorEngine {
             fire("back", situation: "主人刚从离开中回到电脑前", fallback: "哟，回来啦～", 30); return
         }
         if hour >= 23 || hour < 5 {
-            fire("late", situation: "已经深夜 \(hour) 点了，主人还在用电脑", fallback: "都这点了还不睡？阿豆先困了……", 60); return
+            fire("late", situation: "已经深夜 \(hour) 点了，主人还在用电脑", fallback: "都这点了还不睡？我先困了……", 60); return
         }
         if activeMinutes >= 90 {
             fire("sit", situation: "主人已经连续久坐一个半小时", fallback: "又坐一个半小时了，起来走两步吧。", 60); return

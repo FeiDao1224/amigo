@@ -23,7 +23,7 @@ enum ChatStore {
     }
 }
 
-/// 和阿豆的多轮对话 + 从对话里自动提取记忆
+/// 和桌宠的多轮对话 + 从对话里自动提取记忆
 final class ChatSession: ObservableObject {
     @Published var messages: [ChatMsg] = [] { didSet { ChatStore.save(messages) } }
     @Published var busy = false
@@ -71,7 +71,7 @@ final class ChatSession: ObservableObject {
     /// 后台从最近对话里抽取"关于主人"的长期事实
     private func extractMemory(provider p: Provider) {
         let convo = messages.suffix(8)
-            .map { "\($0.role == "user" ? "主人" : "阿豆")：\($0.content)" }
+            .map { "\($0.role == "user" ? "主人" : "桌宠")：\($0.content)" }
             .joined(separator: "\n")
         let sys = """
         你从对话里抽取值得【长期记住的关于主人】的事实（偏好 / 目标 / 正在做的项目 / 常提到的人 / 情绪触发点 / 习惯）。

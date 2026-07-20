@@ -9,7 +9,6 @@ enum PetImages {
     private static var cache: [String: NSImage] = [:]
 
     static func image(_ name: String) -> NSImage? {
-        if name == "cat" { return nil }                 // "cat" = 用代码画的默认猫
         if let c = cache[name] { return c }
         let url = dir.appendingPathComponent("\(name).png")
         guard let img = NSImage(contentsOf: url) else { return nil }
@@ -32,8 +31,8 @@ enum PetImages {
                let src = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "pets") {
                 try? fm.copyItem(at: src, to: dst)
             }
-            // 动作帧数随资源而定；持续读取直到没有下一帧，兼容后续扩帧。
-            for action in ["work", "phone", "think", "idle", "run", "walk"] {
+            // 遍历动作枚举而不是写死列表，免得两边漂（帧数随资源而定，读到缺帧为止）
+            for action in PetAnimAction.allCases.map(\.rawValue) {
                 let destDir = dir.appendingPathComponent("generated/\(name)/\(action)", isDirectory: true)
                 for i in 0..<64 {
                     let fdst = destDir.appendingPathComponent("frame-\(i).png")

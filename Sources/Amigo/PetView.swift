@@ -1,6 +1,18 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// 宠物窗几何：平时窗口只包住宠物本体，冒泡/输入框出现时才临时撑大
+enum PetLayout {
+    static let sprite = CGSize(width: 92, height: 140)
+    static let bottomPad: CGFloat = 8
+    /// 跑动 / 拖拽时精灵会左右摆 6pt、绕底边转 7°（顶端横移约 17pt），两侧留出摆幅别被窗口裁掉
+    static let sideMargin: CGFloat = 22
+    static let topMargin: CGFloat = 14
+    static let compact = CGSize(width: sprite.width + sideMargin * 2,
+                                height: sprite.height + bottomPad + topMargin)
+    static let expanded = CGSize(width: 260, height: 320)
+}
+
 struct PetView: View {
     @ObservedObject var rt: PetRuntime
     var onDrag: (Bool) -> Void          // ended?
@@ -10,13 +22,18 @@ struct PetView: View {
     @State private var chatInput = ""
     @FocusState private var inputFocused: Bool
 
+    /// 有话说 / 在打字时窗口才需要上方的空间
+    private var expanded: Bool { rt.chatting || !rt.bubbleText.isEmpty }
+
     var body: some View {
         VStack(spacing: 2) {
             cloudBubble
             cat
         }
-        .padding(.bottom, 8)
-        .frame(width: 260, height: 320, alignment: .bottom)
+        .padding(.bottom, PetLayout.bottomPad)
+        .frame(width: expanded ? PetLayout.expanded.width : PetLayout.compact.width,
+               height: expanded ? PetLayout.expanded.height : PetLayout.compact.height,
+               alignment: .bottom)
     }
 
     // 干净的毛玻璃气泡：说话显示文字；长按后同一处变输入框
@@ -64,13 +81,13 @@ struct PetView: View {
             if !rt.actionFrames.isEmpty {
                 let i = Int(t * rt.actionFPS * rt.speedFactor) % rt.actionFrames.count
                 Image(nsImage: rt.actionFrames[i]).resizable().interpolation(.none).scaledToFit()
-                    .frame(width: 92, height: 140)
+                    .frame(width: PetLayout.sprite.width, height: PetLayout.sprite.height)
                     .scaleEffect(x: rt.facingLeft ? -1 : 1, y: 1)   // 往左走时翻转朝向
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
                     .modifier(MoveMotion(kind: rt.moveMotion, time: t))
             } else if let img = PetImages.image(rt.characterImageName) {
                 Image(nsImage: img).resizable().interpolation(.none).scaledToFit()
-                    .frame(width: 92, height: 140)
+                    .frame(width: PetLayout.sprite.width, height: PetLayout.sprite.height)
                     .scaleEffect(x: rt.facingLeft ? -1 : 1, y: 1)   // 没生成走路帧时,静态图也随拖动方向翻转
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
                     .modifier(PetMotion(state: rt.petState, time: t))
@@ -97,6 +114,6 @@ struct PetView: View {
             Image(systemName: "pawprint.circle.fill").font(.system(size: 46)).foregroundStyle(Color.orange.gradient)
             Text("选个形象").font(.caption2).foregroundStyle(.secondary)
         }
-        .frame(width: 92, height: 140)
+        .frame(width: PetLayout.sprite.width, height: PetLayout.sprite.height)
     }
 }

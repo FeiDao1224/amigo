@@ -1,7 +1,8 @@
 import Foundation
 
-/// OpenAI 兼容图像编辑（gpt-image-2）：直连用户已配置的中转站端点，无需本地 Node 服务。
-/// 复用聊天 provider 的 baseUrl + apiKey；模型固定 gpt-image-2。Key 从 macOS Keychain 取到内存后使用，绝不打印。
+/// OpenAI 兼容的图像编辑接口（`/images/edits`，模型固定 gpt-image-2）。
+/// 复用聊天 provider 的 baseUrl + apiKey，直连用户自己配置的端点，不经过任何第三方服务。
+/// API Key 只在请求头里出现，不写日志、不上报。
 enum ImageGenError: LocalizedError {
     case noProvider, network(String), http(Int, String), decode
     var errorDescription: String? {
@@ -25,7 +26,7 @@ enum ImageGen {
         guard let url = URL(string: base + "/images/edits") else { throw ImageGenError.decode }
         let dataURLs = references.map { "data:image/png;base64," + $0.base64EncodedString() }
 
-        // multipart 优先（标准 OpenAI images/edits 格式，chiyicn 已验证可用）；不认再退回 JSON image_urls。
+        // multipart 优先（OpenAI images/edits 的标准格式）；端点不认再退回 JSON image_urls。
         do {
             return try await send(multipartRequest(url: url, apiKey: apiKey, prompt: prompt,
                                                    references: references, size: size, quality: quality))

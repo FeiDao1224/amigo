@@ -85,6 +85,7 @@ struct SettingsView: View {
     private var stealthBinding: Binding<Bool> { Binding(get: { state.config.stealth }, set: { state.setStealth($0) }) }
     private var behaviorBinding: Binding<Bool> { Binding(get: { state.config.behaviorDriven }, set: { state.setBehaviorDriven($0) }) }
     private var senseAppBinding: Binding<Bool> { Binding(get: { state.config.senseFrontApp }, set: { state.setSenseFrontApp($0) }) }
+    private var followWindowBinding: Binding<Bool> { Binding(get: { state.config.followWindow }, set: { state.setFollowWindow($0) }) }
     private func mapRow(_ title: String, _ trigger: String, _ current: String) -> some View {
         GRow(title: title) {
             Picker("", selection: Binding(get: { current }, set: { state.setMap(trigger, $0) })) {
@@ -143,7 +144,7 @@ struct SettingsView: View {
                     }
                 }
                 RowDivider()
-                GRow(title: "清空本地内容数据", subtitle: "聊天记录 / 记忆 / 自定义形象 / 人设 / 动作和位置都会抹掉；模型 Key 保留在系统钥匙串") {
+                GRow(title: "清空本地内容数据", subtitle: "聊天记录 / 记忆 / 自定义形象 / 人设 / 动作和位置都会抹掉；模型 Key 保留，可在「模型」页单独删除") {
                     Button("清空…") {
                         if confirm("清空本地内容数据？", "聊天记录、记忆、自定义形象、人设、动作和位置都会被删除，无法恢复。") { state.wipeAllData() }
                     }.tint(.red)
@@ -166,7 +167,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("任务 · 行为督促")
             GroupCard {
-                GRow(title: "主动督促", subtitle: "阿豆会根据你的专注 / 久坐 / 作息主动提醒") {
+                GRow(title: "主动督促", subtitle: "它会根据你的专注 / 久坐 / 作息主动提醒") {
                     Toggle("", isOn: proactiveBinding).labelsHidden().toggleStyle(.switch)
                 }
                 RowDivider()
@@ -301,6 +302,10 @@ struct SettingsView: View {
                 GRow(title: "感知你在用的软件", subtitle: "开启后，它聊天时会知道你正开着什么软件，回复里可能带上；关掉就完全不看") {
                     Toggle("", isOn: senseAppBinding).labelsHidden().toggleStyle(.switch)
                 }
+                RowDivider()
+                GRow(title: "贴住当前窗口", subtitle: "自己跑到你正在操作的那个窗口右下角蹲着；手动拖走就这一次不跟，切窗口再归位") {
+                    Toggle("", isOn: followWindowBinding).labelsHidden().toggleStyle(.switch)
+                }
             }
             Text("每个点击都能改成：某功能，或播放某个动作。动作没生成时会回退到静态 / 程序动画。")
                 .font(.caption).foregroundStyle(.secondary)
@@ -332,9 +337,15 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("关于")
             GroupCard {
-                GRow(title: "Amigo", subtitle: "被你真实行为驱动的桌面搭子 · 开源免费") { Text("v0.2").foregroundStyle(.secondary) }
+                GRow(title: "Amigo", subtitle: "被你真实行为驱动的桌面搭子") {
+                    Text("v\(AppInfo.version)").foregroundStyle(.secondary)
+                }
                 RowDivider()
-                GRow(title: "开源仓库", subtitle: "github.com/FeiDao1224/amigo") { EmptyView() }
+                GRow(title: "开源仓库", subtitle: "MIT 许可证 · 无账号 · 无内购 · 数据只存本机") {
+                    if let url = URL(string: AppInfo.repository) {
+                        Link("在 GitHub 打开", destination: url).controlSize(.small)
+                    }
+                }
             }
         }
     }

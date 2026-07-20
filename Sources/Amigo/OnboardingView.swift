@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 首次启动引导：讲清楚它是什么 + 引导配模型（不配啥都干不了）
+/// 首次启动引导：讲清楚它是什么 + 引导配模型（不配模型也能玩内置形象，只是不能聊天/生成）
 struct OnboardingView: View {
     let onConfigureModel: () -> Void
     let onDone: () -> Void
@@ -14,8 +14,8 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center).frame(maxWidth: 380)
 
             VStack(alignment: .leading, spacing: 12) {
-                step("1", "配一个大模型", "填你的 API 端点 + Key，它才能真聊天、生成形象和动作")
-                step("2", "选个形象 / 上传你自己的", "默认香蕉猫 / 看表鱼，或上传照片让 AI 生成专属像素形象")
+                step("1", "直接开玩", "内置咕咕嘎嘎和草地牛都自带动作，不配模型也能拖着跑")
+                step("2", "配一个大模型（可选）", "填你的 API 端点 + Key，它才能聊天、生成新形象和新动作")
                 step("3", "调教性格 + 交互", "写它的人设，设定点击 / 拖动 / 对话触发什么动作")
             }.frame(maxWidth: 380)
 

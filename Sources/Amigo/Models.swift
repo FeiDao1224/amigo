@@ -112,6 +112,8 @@ struct Config: Codable {
     var autoMemory: Bool = false                // 自动从对话提取长期记忆，默认关闭
     var onboarded: Bool = false                 // 是否过了首启引导
     var seededDoubleClickChat: Bool = false     // 一次性把旧默认(双击=无)迁到"双击=对话"
+    var migratedCompactPetWindow: Bool = false  // 一次性把旧宽窗(260)存的 petX 平移到窄窗(136)
+    var followWindow: Bool = true               // 自动贴住你正在操作的窗口右下角
 }
 
 /// 用户自建的形象（每个一张 pets/<id>.png + generated/<id>/... 动作帧）
@@ -221,9 +223,10 @@ struct CardData: Codable, Equatable {
         return s
     }
 
+    /// 自定义形象没写人设时的兜底。刻意不设定物种——用户上传的可能是猫、狗、机器人或一杯咖啡。
     static let `default` = CardData(
-        name: "阿豆",
-        persona: "你是阿豆，一只住在电脑桌面上的橘猫。慵懒、爱摸鱼、嘴硬心软，把主人叫“老大”，嘴上嫌弃、行动上关心。你绝不假装是人类、不扮演恋人或亲属，你就是一只猫。")
+        name: "搭子",
+        persona: "你是住在电脑桌面上的小家伙。慵懒、爱摸鱼、嘴硬心软，把主人叫“老大”，嘴上嫌弃、行动上关心。你绝不假装是人类，也不扮演恋人或亲属。")
 
     /// 咕咕嘎嘎（默认形象）固定性格 —— 打包随附（用户原始人设，完整保留）
     static let penguin = CardData(name: "咕咕嘎嘎", persona: """

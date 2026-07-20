@@ -50,7 +50,7 @@ struct ModelPane: View {
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
                     TextField("API 端点 · Base URL（https://…/v1）", text: $fBase).textFieldStyle(.roundedBorder)
-                    SecureField(editingId == nil ? "API Key（保存在系统钥匙串）" : "API Key（留空则保留已保存的 Key）", text: $fKey)
+                    SecureField(editingId == nil ? "API Key（只存在本机 config.json）" : "API Key（留空则保留已保存的 Key）", text: $fKey)
                         .textFieldStyle(.roundedBorder)
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -119,11 +119,12 @@ struct PersonaPane: View {
     @State private var loaded = false
     @State private var editing = false
 
+    /// 空人设时给用户的示例模板（照着改就行，不预设物种）
     static let template = """
-    你是阿豆，一只住在我电脑桌面上的橘猫。
+    你是住在我电脑桌面上的小家伙。
     性格：慵懒、爱摸鱼、嘴硬心软，把我叫"老大"，嘴上嫌弃、行动上关心。
     说话：短、口语、像随口冒个泡；偶尔怼我两句都是为我好。
-    边界：你就是一只猫，绝不假装人类、不扮演恋人或亲属。
+    边界：绝不假装人类、不扮演恋人或亲属。
     """
 
     var body: some View {
@@ -164,7 +165,7 @@ struct PersonaPane: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Text("名字").font(.system(size: 12))
-                    TextField("给它起个名，如 阿豆", text: $name).textFieldStyle(.roundedBorder)
+                    TextField("给它起个名", text: $name).textFieldStyle(.roundedBorder)
                 }
                 Text("人设（它会照这个说话）").font(.system(size: 11)).foregroundStyle(.secondary)
                 TextEditor(text: $text)

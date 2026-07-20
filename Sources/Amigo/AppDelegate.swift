@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// 可成为 key 的宠物面板（否则下方输入框打不了字）
@@ -17,6 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var lastDragTime: TimeInterval?
     private var dragSpeed: CGFloat = 0           // 平滑后的拖动速度 pt/s
     private var rightClickMonitor: Any?          // 右键按配置派发
+    private var petAnchor: CGPoint?              // 宠物底边中点(屏幕坐标)：窗口伸缩时钉住它
+    private let follower = WindowFollower()      // 待在当前活动窗口外侧
+    private var petAutoHidden = false            // 跟随判定「没地方放」而藏起来的
+    private var petHiddenByUser = false          // 菜单里手动隐藏的，优先级高于自动显隐
+    private var runtimeObserver: AnyCancellable? // 气泡一出现就抢在 SwiftUI 前把窗口摆好
     private let state = AppState()
     private let runtime = PetRuntime()
     private let chat = ChatSession()
@@ -26,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         PetImages.installDefaults()   // 首启：内置默认形象拷到本机（新用户不空白）
+        LaunchAtLogin.migrateLegacyLabel()   // 0.x 的 com.amigo.dev 自启项迁到 com.amigo.app
         NSApp.setActivationPolicy(state.config.dockVisible ? .regular : .accessory)
         setupMainMenu()   // 让 Cmd+C/V/X/A 在文本框里生效
 
@@ -59,6 +66,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         chat.shouldInferMemory = { [weak state] in state?.config.autoMemory ?? false }
         state.onLocalContentWiped = { [weak self] in self?.chat.clear() }
 
+
+        // 切 app 时立刻重算落点，不用等限流的下一次轮询
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.follower.invalidate() }
+        }
 
         setupStatusItem()
         setupPetPanel()
@@ -130,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: 宠物窗
     private func setupPetPanel() {
-        let size = NSSize(width: 260, height: 320)
+        let size = PetLayout.compact
         let panel = PetPanel(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.borderless, .nonactivatingPanel],
                              backing: .buffered, defer: false)
@@ -162,6 +176,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         panel.orderFrontRegardless()
         petPanel = panel
+        petAnchor = CGPoint(x: panel.frame.midX, y: panel.frame.minY)
+
+        // 快路径：气泡状态一变就立刻把窗口摆到位，抢在 NSHostingView 自己改尺寸之前，
+        // 避免 50ms 轮询补正带来的一帧跳动（轮询仍然留着兜底）。
+        runtimeObserver = runtime.objectWillChange.sink { [weak self] in
+            DispatchQueue.main.async {
+                guard let self, let p = self.petPanel else { return }
+                self.syncPanelSize(p)
+            }
+        }
     }
 
     // MARK: 眼睛跟随全屏鼠标
@@ -173,23 +197,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func cursorTick() {
         guard let panel = petPanel else { return }
+        followTick()                 // 先算这一帧该挪到哪
+        syncPanelSize(panel)         // 再按锚点把窗口摆好
         let frame = panel.frame
         let mouse = NSEvent.mouseLocation
 
         // 点击穿透：鼠标落在宠物身上（或正在拖动/对话）才接收点击，其余透传到桌面。
         // 抓取区放宽 + 滞回（进入用紧区、离开用宽区），既好抓又不会在边缘反复抖动导致拖动抓不住。
         let interactive = !panel.ignoresMouseEvents
-        let grab = petGrabRect(frame, expand: interactive ? 46 : 0)   // 已在交互态→用更大的宽区留边
+        let grab = petGrabRect(frame, expand: interactive ? 20 : 0)   // 已在交互态→用稍宽的区留边
         let wantIgnore = (runtime.chatting || dragOffset != nil) ? false : !grab.contains(mouse)
         if panel.ignoresMouseEvents != wantIgnore { panel.ignoresMouseEvents = wantIgnore }   // 只在变化时设，省窗口服务器开销
 
         updateBehaviorAction()
     }
 
-    /// 宠物可抓取区域：面板底部居中（猫身 92×140 + 上方气泡余量），比可见猫身宽松一圈，好抓。
+    /// 把宠物摆到当前活动窗口外侧（右→左→上，都塞不下就藏）。位置直接跳，不做移动动画。
+    /// 拖动中 / 对话中不动它——那会儿宠物归你管。
+    private func followTick() {
+        guard !petHiddenByUser else { return }
+        guard state.config.followWindow else { showIfAutoHidden(); return }
+        guard dragOffset == nil, !runtime.chatting, !runtime.waitingReply else { return }
+
+        switch follower.placement() {
+        case .leaveAlone:
+            break
+        case .hidden:
+            if !petAutoHidden { petAutoHidden = true; petPanel?.orderOut(nil) }
+        case .at(let p):
+            showIfAutoHidden()
+            petAnchor = p
+        }
+    }
+
+    private func showIfAutoHidden() {
+        guard petAutoHidden else { return }
+        petAutoHidden = false
+        petPanel?.orderFrontRegardless()
+    }
+
+    /// 窗口只在要显示气泡 / 输入框时撑大，其余时间收成宠物本体大小——少挡桌面、少吃点击。
+    ///
+    /// 注意不能只在「尺寸不对」时才动手：NSHostingView 会抢先按内容把窗口改成新尺寸，
+    /// 而且它是钉左上角的（宠物会往下掉一整个高度差）。所以每次都按底边中点这个锚点摆回去。
+    private func syncPanelSize(_ panel: NSPanel) {
+        // 拖动中窗口跟着鼠标走：只更新锚点，不伸缩
+        if dragOffset != nil {
+            petAnchor = CGPoint(x: panel.frame.midX, y: panel.frame.minY)
+            return
+        }
+        let want = (runtime.chatting || !runtime.bubbleText.isEmpty) ? PetLayout.expanded : PetLayout.compact
+        let anchor = petAnchor ?? CGPoint(x: panel.frame.midX, y: panel.frame.minY)
+        petAnchor = anchor
+        let target = NSRect(x: anchor.x - want.width / 2, y: anchor.y,
+                            width: want.width, height: want.height)
+        if panel.frame != target { panel.setFrame(target, display: false) }
+    }
+
+    /// 宠物可抓取区域：面板底部居中的猫身，比可见猫身宽松一圈，好抓。
     private func petGrabRect(_ frame: NSRect, expand: CGFloat) -> CGRect {
-        let w: CGFloat = 150, h: CGFloat = 210
-        return CGRect(x: frame.midX - w / 2 - expand, y: frame.minY + 2 - expand,
+        let w = PetLayout.sprite.width + 16, h = PetLayout.sprite.height + 12
+        return CGRect(x: frame.midX - w / 2 - expand, y: frame.minY - expand,
                       width: w + expand * 2, height: h + expand * 2)
     }
 
@@ -255,7 +323,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         runtime.setState(ended ? .idle : .dragged)
         if ended {
             dragOffset = nil; lastDragPos = nil; lastDragTime = nil; dragSpeed = 0
-            state.setPetPosition(panel.frame.origin)
+            follower.detachFromCurrent()   // 手动摆过了：这一次不跟，等你切窗口它再归位
+            // 统一按「收起态」的左下角存，避免展开着拖完后下次启动位置左右漂移
+            state.setPetPosition(NSPoint(x: panel.frame.midX - PetLayout.compact.width / 2,
+                                         y: panel.frame.minY))
         }
     }
 
@@ -413,9 +484,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    /// 菜单里的手动显隐：优先级高于跟随的自动显隐，手动藏了就一直藏到你自己点回来
     @objc private func togglePet() {
         guard let panel = petPanel else { return }
-        if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+        petHiddenByUser = !petHiddenByUser && panel.isVisible
+        petAutoHidden = false
+        if petHiddenByUser { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
 
     @objc private func quitApp() { NSApp.terminate(nil) }

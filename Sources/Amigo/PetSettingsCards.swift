@@ -9,6 +9,12 @@ struct ActionRow: View {
     @State private var editing = false
     @State private var editText = ""
     private var status: String { state.actionStatus[def.id] ?? "" }
+    /// 状态格式是 "failed" 或 "failed:<原因>"，两种都要显示出来，别让失败看起来像没点过
+    private var failure: String? {
+        guard status.hasPrefix("failed") else { return nil }
+        let reason = status.dropFirst("failed".count).drop { $0 == ":" }
+        return reason.isEmpty ? "生成失败" : String(reason)
+    }
     private var character: String { state.config.character }
     private var made: Bool { SpriteGen.exists(character: character, action: def.id) }
     private var isCurrent: Bool { state.config.activeAction == def.id }
@@ -58,7 +64,11 @@ struct ActionRow: View {
     }
     @ViewBuilder private var statusText: some View {
         if status == "generating" { Text("生成中…").font(.caption2).foregroundStyle(.secondary) }
-        else if status == "failed" { Text("生成失败").font(.caption2).foregroundStyle(.red) }
+        else if let reason = failure {
+            Text(reason).font(.caption2).foregroundStyle(.red).lineLimit(2)
+                .multilineTextAlignment(.center).help(reason)
+        }
+        else if status == "cancelled" { Text("已取消").font(.caption2).foregroundStyle(.secondary) }
         else if made { Text(isCurrent ? "当前播放" : "已生成").font(.caption2).foregroundStyle(.green) }
         else { Text("未生成").font(.caption2).foregroundStyle(.secondary) }
     }

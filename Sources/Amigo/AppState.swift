@@ -22,7 +22,23 @@ final class AppState: ObservableObject {
         }
         migrateProviderSecretsBack()
         migrateCharacters()
+        migrateCompactPetWindow()
         ConfigStore.save(config)
+    }
+
+    /// 一次性迁移：宠物窗从 260 宽收成 PetLayout.compact 后，旧配置存的左下角 x 会让宠物左偏。
+    /// 按「保持宠物中心不动」把 petX 右移半个宽度差；y 是底边对齐的，不用动。
+    private func migrateCompactPetWindow() {
+        defer { config.migratedCompactPetWindow = true }
+        guard !config.migratedCompactPetWindow, let x = config.petX else { return }
+        let shifted = x + (260 - PetLayout.compact.width) / 2
+        // 别把它挪出屏幕：夹回宠物所在屏幕的可视区
+        let screen = NSScreen.screens.first { $0.frame.contains(CGPoint(x: x, y: config.petY ?? 0)) } ?? NSScreen.main
+        if let vf = screen?.visibleFrame {
+            config.petX = min(max(shifted, vf.minX), vf.maxX - PetLayout.compact.width)
+        } else {
+            config.petX = shifted
+        }
     }
 
     /// 一次性：把旧「Lingzai」数据目录改名为「Amigo」，保住已配置的模型 Key / 形象 / 记忆
@@ -195,7 +211,7 @@ final class AppState: ObservableObject {
         try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
         NSWorkspace.shared.activateFileViewerSelecting([dataDir])
     }
-    /// 导出"关于你"的数据（记忆）到你选的文件夹；不含 API Key
+    /// 导出"关于你"的数据（记忆 + 聊天记录）到你选的文件夹；不含 API Key
     @discardableResult
     func exportData() -> Bool {
         let panel = NSOpenPanel()
@@ -205,7 +221,7 @@ final class AppState: ObservableObject {
         let fm = FileManager.default
         let out = dest.appendingPathComponent("Amigo数据备份", isDirectory: true)
         try? fm.createDirectory(at: out, withIntermediateDirectories: true)
-        for name in ["memories.json"] {
+        for name in ["memories.json", "chat.json"] {   // 和设置页承诺的「聊天记录 + 记忆」保持一致
             let src = dataDir.appendingPathComponent(name)
             guard fm.fileExists(atPath: src.path) else { continue }
             let dst = out.appendingPathComponent(name)
@@ -293,7 +309,7 @@ final class AppState: ObservableObject {
         }
         let refURL = PetImages.dir.appendingPathComponent("\(config.character).png")
         guard let ref = try? Data(contentsOf: refURL), NSImage(data: ref) != nil else {
-            actionStatus[def.id] = "failed:当前形象没有图片可作参考（先选一个鱼 / 做个自定义形象）"; return
+            actionStatus[def.id] = "failed:当前形象没有可用作参考的图片，先在「形象」页换一个或新建"; return
         }
         actionStatus[def.id] = "generating"
         do {
@@ -366,6 +382,7 @@ final class AppState: ObservableObject {
         AppState.clickFunctions + allActions.map { ("act:" + $0.id, "播放 · " + $0.title) }
     }
     func setSenseFrontApp(_ v: Bool) { config.senseFrontApp = v; persist() }
+    func setFollowWindow(_ v: Bool) { config.followWindow = v; persist() }
     func markOnboarded() { config.onboarded = true; persist() }
     func setClick(_ trigger: String, _ v: String) {
         switch trigger {

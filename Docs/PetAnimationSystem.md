@@ -20,7 +20,8 @@ The package script copies `Assets/pets/` into the app bundle. User-created conte
 
 ## Playback Contract
 
-- Built-in actions are `work`, `phone`, `think`, `idle`, `run`, and `walk`.
+- Built-in actions are `work`, `phone`, `think`, `idle`, `walk`, and `sleep`, defined by `PetAnimAction`.
+- Bundled starter frames ship for `work`, `phone`, `think`, `idle`, and `walk`; `sleep` has no bundled frames and falls back to the current frames until the user generates it.
 - Generated clips use a 3x3 sheet and produce nine frames.
 - Frame rate is calculated from `PetAnimAction.loopSeconds`, capped at 20 fps, so older four-frame clips remain compatible.
 - Missing frames fall back to the static character image and, for dragging, procedural movement.
@@ -28,4 +29,4 @@ The package script copies `Assets/pets/` into the app bundle. User-created conte
 
 ## Generation Notes
 
-The model can still produce invalid poses or inconsistent frames. The current pipeline normalizes position only; it does not yet reject malformed frames or score character similarity. Treat a generated clip as user-reviewable output, not as an automatically trusted asset.
+The model can still produce invalid poses or inconsistent frames. `dropOutlierFrames` discards frames whose alpha bounding box deviates from the median height, which catches most clipped or collapsed frames, but the pipeline does not verify orientation or score character similarity. Treat a generated clip as user-reviewable output, not as an automatically trusted asset.

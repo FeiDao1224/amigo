@@ -1,7 +1,7 @@
 import AppKit
 import ImageIO
 
-/// 5 个默认动作。prompt 强调"同尺寸/居中/双脚同一基线"，配合帧对齐消除跳动。
+/// 6 个内置动作。prompt 强调「同尺寸 / 居中 / 双脚同一基线」，配合帧对齐消除播放时的跳动。
 enum PetAnimAction: String, CaseIterable, Identifiable {
     case work, phone, think, idle, walk, sleep
     var id: String { rawValue }
@@ -46,10 +46,9 @@ enum PetAnimAction: String, CaseIterable, Identifiable {
 }
 
 enum SpriteGenError: LocalizedError {
-    case noReference, decode
+    case decode
     var errorDescription: String? {
         switch self {
-        case .noReference: return "当前形象没有可用作参考的图片（先在宠物页选一个鱼 / 做个自定义形象）"
         case .decode: return "无法解析生成的图片"
         }
     }
@@ -62,7 +61,7 @@ enum SpriteGen {
         root.appendingPathComponent(character, isDirectory: true).appendingPathComponent(action, isDirectory: true)
     }
 
-    /// 生成某动作（绑定到当前形象）：直连生图 → 2×2 切 4 帧 → 去白底 + 底部居中对齐
+    /// 生成某动作（绑定到当前形象）：直连生图 → 3×3 切 9 帧 → 色键抠底 → 重心 + 底部对齐
     static func generate(actionId: String, prompt: String, character: String, referencePNG: Data, baseUrl: String, apiKey: String) async throws -> Int {
         let data = try await ImageGen.edit(baseUrl: baseUrl, apiKey: apiKey, prompt: prompt, references: [referencePNG])
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
@@ -246,7 +245,7 @@ enum SpriteGen {
     /// 读某形象某动作已生成的帧
     static func loadFrames(character: String, action: String) -> [NSImage] {
         var imgs: [NSImage] = []
-        for i in 0..<64 {   // 读到缺帧为止，兼容旧的 4 帧与新的 16 帧
+        for i in 0..<64 {   // 读到缺帧为止：历史上用过 4 帧和 16 帧，混着也能播
             let u = dir(character: character, action: action).appendingPathComponent("frame-\(i).png")
             guard FileManager.default.fileExists(atPath: u.path), let img = NSImage(contentsOf: u) else { break }
             imgs.append(img)
