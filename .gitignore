@@ -5,3 +5,4 @@ dist/
 AppIcon.iconset/
 .DS_Store
 **/.DS_Store
+.vercel
