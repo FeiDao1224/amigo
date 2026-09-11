@@ -47,14 +47,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.runtime.setCharacter(id)
         }
         runtime.nudgeUseLLM = { [weak state] in state?.config.proactiveLLM ?? false }
-        runtime.senseFrontApp = { [weak state] in state?.config.senseFrontApp ?? true }
+        runtime.senseFrontApp = { [weak state] in (state?.config.senseFrontApp ?? true) && !(state?.config.stealth ?? false) }
 
         chat.provider = { [weak state] in state?.activeProvider() }
         chat.systemPrompt = { [weak state] in
             guard let s = state else { return "" }
             let base = s.currentCard().systemPrompt
             let mem = s.memoryContext()
-            let sys = SystemInfo.context(includeFrontApp: s.config.senseFrontApp)
+            let sys = SystemInfo.context(includeFrontApp: s.config.senseFrontApp && !s.config.stealth)
             return [base, mem, sys].filter { !$0.isEmpty }.joined(separator: "\n\n")
         }
         chat.onReply = { [weak self] r in
@@ -64,7 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         chat.onInferred = { [weak state] items in state?.addInferred(items) }
         chat.isStealth = { [weak state] in state?.config.stealth ?? false }
         chat.shouldInferMemory = { [weak state] in state?.config.autoMemory ?? false }
-        state.onLocalContentWiped = { [weak self] in self?.chat.clear() }
+        state.onMemoryInvalidated = { [weak self] in self?.chat.invalidateMemoryRequests() }
+        runtime.isStealth = { [weak state] in state?.config.stealth ?? false }
+        state.onLocalContentWiped = { [weak self] in
+            self?.chat.clear()
+            self?.runtime.waitingReply = false
+            self?.runtime.showBubble("")
+        }
 
 
         // 切 app 时立刻重算落点，不用等限流的下一次轮询
@@ -216,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// 拖动中 / 对话中不动它——那会儿宠物归你管。
     private func followTick() {
         guard !petHiddenByUser else { return }
-        guard state.config.followWindow else { showIfAutoHidden(); return }
+        guard state.config.followWindow, !state.config.stealth else { showIfAutoHidden(); return }
         guard dragOffset == nil, !runtime.chatting, !runtime.waitingReply else { return }
 
         switch follower.placement() {
@@ -271,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             setSpeed(1); runtime.facingLeft = false
             runtime.showAction(state.config.mapChat); return
         }
-        guard state.config.behaviorDriven else {
+        guard state.config.behaviorDriven, !state.config.stealth else {
             setSpeed(1); runtime.facingLeft = false; runtime.showAction(state.config.activeAction); return
         }
         if dragOffset != nil {
@@ -287,8 +293,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 frontActive = false
             }
             if now - lastIdleCheck > 1.0 { idleLong = idleSeconds() > 180; lastIdleCheck = now }   // 久闲判定
-            if frontActive { runtime.showAction("work") }                 // 用电脑→工作
-            else if idleLong { runtime.showAction("sleep", fallbackMotion: 0) }   // 闲置>3分钟→睡觉
+            if idleLong { runtime.showAction("sleep", fallbackMotion: 0) }   // 闲置>3分钟→睡觉
+            else if frontActive { runtime.showAction("work") }
             else { runtime.showAction(state.config.activeAction) }        // 否则默认动作
         }
     }

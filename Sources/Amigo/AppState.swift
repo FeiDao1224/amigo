@@ -125,8 +125,8 @@ final class AppState: ObservableObject {
 
     func setProactive(_ v: Bool) { config.proactive = v; persist() }
     func setProactiveLLM(_ v: Bool) { config.proactiveLLM = v; persist() }
-    func setStealth(_ v: Bool) { config.stealth = v; persist() }
-    func setAutoMemory(_ v: Bool) { config.autoMemory = v; persist() }
+    func setStealth(_ v: Bool) { config.stealth = v; if v { onMemoryInvalidated?() }; persist() }
+    func setAutoMemory(_ v: Bool) { config.autoMemory = v; if !v { onMemoryInvalidated?() }; persist() }
     var onCharacterChanged: ((String) -> Void)?
     func setCharacter(_ id: String) { config.character = id; persist(); onCharacterChanged?(id) }
 
@@ -248,6 +248,7 @@ final class AppState: ObservableObject {
         onLocalContentWiped?()
     }
 
+    var onMemoryInvalidated: (() -> Void)?
     var onLocalContentWiped: (() -> Void)?
 
     // MARK: AI 动作动画（直连你配置的模型端点，无需本地服务）
@@ -304,16 +305,21 @@ final class AppState: ObservableObject {
 
     @MainActor
     func generateActionDef(_ def: ActionDef) async {
+        await generateActionDef(def, character: config.character)
+    }
+
+    @MainActor
+    private func generateActionDef(_ def: ActionDef, character: String) async {
         guard let p = activeProvider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
             actionStatus[def.id] = "failed:先在「模型」页配置并启用一个模型"; return
         }
-        let refURL = PetImages.dir.appendingPathComponent("\(config.character).png")
+        let refURL = PetImages.dir.appendingPathComponent("\(character).png")
         guard let ref = try? Data(contentsOf: refURL), NSImage(data: ref) != nil else {
             actionStatus[def.id] = "failed:当前形象没有可用作参考的图片，先在「形象」页换一个或新建"; return
         }
         actionStatus[def.id] = "generating"
         do {
-            _ = try await SpriteGen.generate(actionId: def.id, prompt: def.prompt, character: config.character, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
+            _ = try await SpriteGen.generate(actionId: def.id, prompt: def.prompt, character: character, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
             actionStatus[def.id] = "success"
             onGeneratedFramesChanged?()
         } catch {
@@ -351,11 +357,12 @@ final class AppState: ObservableObject {
             batchProgress = ""
             batchTask = nil
         }
+        let character = config.character
         let all = builtinActions
         for (i, d) in all.enumerated() {
             guard !Task.isCancelled else { return }
             batchProgress = "\(i + 1)/\(all.count) \(d.title)"
-            await generateActionDef(d)
+            await generateActionDef(d, character: character)
         }
     }
     func setBehaviorDriven(_ v: Bool) { config.behaviorDriven = v; persist(); onGeneratedFramesChanged?() }
@@ -411,7 +418,7 @@ final class AppState: ObservableObject {
         if changed { MemoryStore.save(memories) }
     }
     func deleteMemory(_ id: String) { memories.removeAll { $0.id == id }; MemoryStore.save(memories) }
-    func clearMemories() { memories.removeAll(); MemoryStore.save(memories) }
+    func clearMemories() { onMemoryInvalidated?(); memories.removeAll(); MemoryStore.save(memories) }
     /// 注入进宠物的 system prompt：让它"记得你"
     func memoryContext() -> String {
         let longs = memories.filter { $0.longTerm }

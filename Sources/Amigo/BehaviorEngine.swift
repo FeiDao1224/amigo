@@ -28,6 +28,7 @@ final class BehaviorEngine {
     }
 
     private func tick() {
+        guard isEnabled() else { activeMinutes = 0; wasAway = false; return }
         let idle = idleSeconds()
         if idle < 60 { activeMinutes += 0.5 }
         if idle > 300 { activeMinutes = 0; wasAway = true }

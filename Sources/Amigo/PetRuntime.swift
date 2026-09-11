@@ -63,6 +63,7 @@ final class PetRuntime: ObservableObject {
     var activeCard: (() -> CardData)?
     var nudgeUseLLM: () -> Bool = { false }
     var memoryContext: () -> String = { "" }
+    var isStealth: () -> Bool = { false }
     var senseFrontApp: () -> Bool = { true }
 
     private var clearWork: DispatchWorkItem?
@@ -107,6 +108,7 @@ final class PetRuntime: ObservableObject {
 
     /// 主动督促：开关开 + 有模型时用 AI 生成有性格的一句，否则用内置文案
     func nudge(situation: String, fallback: String) {
+        guard !isStealth() else { return }
         guard nudgeUseLLM(), let p = activeProvider?(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
             showBubble(fallback); return
         }
@@ -115,8 +117,9 @@ final class PetRuntime: ObservableObject {
             do {
                 let line = try await LLM.chat(provider: p, system: system,
                     user: "现在的情况：\(situation)。用你的性格，主动对主人说一句简短的提醒或关心，不超过 25 字，别解释。")
+                guard !isStealth() else { return }
                 showBubble(line)
-            } catch { showBubble(fallback) }
+            } catch { if !isStealth() { showBubble(fallback) } }
         }
     }
 
