@@ -35,6 +35,7 @@ final class ChatSession: ObservableObject {
     var systemPrompt: () -> String = { "" }                 // 人格 + 记忆
     var onReply: (String) -> Void = { _ in }                // 镜像到桌宠气泡
     var onInferred: ([(content: String, category: String)]) -> Void = { _ in }
+    var onUserMessage: () -> Void = {}
     var isStealth: () -> Bool = { false }
     var shouldInferMemory: () -> Bool = { false }
 
@@ -58,15 +59,17 @@ final class ChatSession: ObservableObject {
         messages = []
     }
 
-    func send(_ text: String) {
+    @discardableResult
+    func send(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, !busy else { return }
+        guard !t.isEmpty, !busy else { return false }
         messages.append(ChatMsg(role: "user", content: t))
+        onUserMessage()
         guard let p = provider(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
             let m = "（先在设置→模型里配一个模型，并点“启用”）"
             messages.append(ChatMsg(role: "assistant", content: m))
             onReply(m)                       // 失败也要显示到气泡
-            return
+            return true
         }
         busy = true
         var msgs: [[String: Any]] = [["role": "system", "content": systemPrompt()]]
@@ -74,6 +77,7 @@ final class ChatSession: ObservableObject {
         let generation = replyGeneration
         let memoryVersion = memoryGeneration
         replyTask = Task { @MainActor in
+            defer { if generation == replyGeneration { busy = false } }
             do {
                 let reply = try await LLM.chat(provider: p, messages: msgs)
                 guard !Task.isCancelled, generation == replyGeneration else { return }
@@ -87,8 +91,8 @@ final class ChatSession: ObservableObject {
                 onReply(m)                   // 报错也显示到气泡
                 NSLog("Amigo chat error: \(error.localizedDescription)")
             }
-            busy = false
         }
+        return true
     }
 
     /// 后台从最近对话里抽取"关于主人"的长期事实
@@ -104,14 +108,8 @@ final class ChatSession: ObservableObject {
         memoryTask?.cancel()
         let generation = memoryGeneration
         memoryTask = Task { @MainActor in
-            guard let reply = try? await LLM.chat(provider: p, system: sys, user: convo),
-                  let s = reply.firstIndex(of: "["), let e = reply.lastIndex(of: "]"), s <= e,
-                  let data = String(reply[s...e]).data(using: .utf8),
-                  let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-            let items: [(content: String, category: String)] = arr.compactMap {
-                guard let c = $0["content"] as? String, !c.isEmpty else { return nil }
-                return (c, ($0["category"] as? String) ?? "其它")
-            }
+            guard let reply = try? await LLM.chat(provider: p, system: sys, user: convo) else { return }
+            let items = MemoryInference.parse(reply)
             guard !Task.isCancelled, generation == memoryGeneration,
                   shouldInferMemory(), !isStealth() else { return }
             if !items.isEmpty { onInferred(items) }

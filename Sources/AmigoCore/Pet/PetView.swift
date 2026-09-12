@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// 宠物窗几何：平时窗口只包住宠物本体，冒泡/输入框出现时才临时撑大
 enum PetLayout {
@@ -78,6 +77,7 @@ struct PetView: View {
     private var cat: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
+            ZStack(alignment: .top) {
             if !rt.actionFrames.isEmpty {
                 let i = Int(t * rt.actionFPS * rt.speedFactor) % rt.actionFrames.count
                 Image(nsImage: rt.actionFrames[i]).resizable().interpolation(.none).scaledToFit()
@@ -94,6 +94,10 @@ struct PetView: View {
             } else {
                 placeholderPet.modifier(PetMotion(state: rt.petState, time: t))
             }
+            if let until = rt.heartBurstUntil, tl.date < until {
+                heartBurst(time: t)
+            }
+            }
         }
         .contentShape(Circle())
         .onTapGesture(count: 2) { onTrigger("double") }
@@ -106,6 +110,18 @@ struct PetView: View {
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.4).onEnded { _ in onTrigger("long") }
         )
+    }
+
+    private func heartBurst(time: TimeInterval) -> some View {
+        let phase = time.truncatingRemainder(dividingBy: 2)
+        return ZStack {
+            Text("♡").offset(x: -16, y: -6 - CGFloat(phase) * 10)
+            Text("♡").offset(x: 4, y: -14 - CGFloat(phase) * 8)
+            Text("♡").offset(x: 18, y: -4 - CGFloat(phase) * 12)
+        }
+        .font(.system(size: 13))
+        .foregroundStyle(.pink.opacity(0.85))
+        .allowsHitTesting(false)
     }
 
     // 没有形象图时的极简兜底

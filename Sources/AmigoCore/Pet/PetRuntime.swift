@@ -17,7 +17,18 @@ final class PetRuntime: ObservableObject {
     @Published var waitingReply = false                 // 发消息后等模型返回：显示"打电话"
     @Published var facingLeft = false                   // 朝向：往左走时水平翻转
     @Published var oneShotUntil: Date?                  // 一次性播放某动作(点击触发)到某时刻
+    @Published var mood: PetMood = .calm
+    @Published var heartBurstUntil: Date?
     var oneShotKey = ""
+
+    func applyCompanion(_ snap: CompanionSnapshot) {
+        mood = snap.mood
+        if snap.mood == .sulky { facingLeft = true }
+    }
+
+    func burstHearts() {
+        heartBurstUntil = Date().addingTimeInterval(1.8)
+    }
     func oneShot(_ key: String, seconds: Double = 2.5) { oneShotKey = key; oneShotUntil = Date().addingTimeInterval(seconds) }
 
     private var currentActionKey = ""
@@ -87,19 +98,26 @@ final class PetRuntime: ObservableObject {
         [card.systemPrompt, memoryContext(), SystemInfo.context(includeFrontApp: senseFrontApp())].filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 
-    func speak() {
+    private var speakGeneration = 0
+
+    func speak(fallback: String? = nil) {
+        burstHearts()
         guard let p = activeProvider?(), !p.apiKey.isEmpty, !p.baseUrl.isEmpty else {
-            showBubble(canned.randomElement()!)
+            showBubble(fallback ?? canned.randomElement()!)
             return
         }
         showBubble("…", sticky: true)
         let system = fullSystem
+        speakGeneration += 1
+        let generation = speakGeneration
         Task { @MainActor in
             do {
                 let reply = try await LLM.chat(provider: p, system: system,
                                                user: "（主人戳了戳你，随口说一句话吧）")
+                guard generation == speakGeneration else { return }
                 showBubble(reply)
             } catch {
+                guard generation == speakGeneration else { return }
                 showBubble("（脑子卡壳了…）")
                 NSLog("Amigo LLM error: \(error.localizedDescription)")
             }

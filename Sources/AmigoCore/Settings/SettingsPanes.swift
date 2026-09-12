@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 // MARK: - 模型页
 struct ModelPane: View {
@@ -15,8 +14,8 @@ struct ModelPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("模型")
-            Text("配置一个大模型服务：API 端点 + Key + 模型。Key 只存在本机配置里。")
+            SectionHeader("模型", page: true)
+            Text("API 端点 + Key + 模型。Key 只存在本机。")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             // 已保存
@@ -44,8 +43,8 @@ struct ModelPane: View {
             }
 
             // 新增 / 编辑
-            SectionHeader(editingId == nil ? "新增配置" : "编辑配置")
-            Text("填 API 端点 + Key + 模型（OpenAI 兼容端点 / 中转站均可）。Key 只存在本机配置里。")
+            SectionHeader(editingId == nil ? "新增" : "编辑")
+            Text("OpenAI 兼容端点或中转站均可。")
                 .font(.caption).foregroundStyle(.secondary)
             GroupCard {
                 VStack(alignment: .leading, spacing: 10) {
@@ -194,6 +193,46 @@ struct PersonaPane: View {
     }
 }
 
+// MARK: - 情绪陪伴
+struct CompanionPane: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        let c = state.config.companion
+        VStack(alignment: .leading, spacing: 16) {
+            GroupCard {
+                GRow(title: "现在的心情", subtitle: "摸摸、喂一口会开心；冷落久了会想你") {
+                    Text(c.mood.title).foregroundStyle(.secondary)
+                }
+                RowDivider()
+                GRow(title: "亲密度 \(c.affection)", subtitle: "一起 \(c.daysTogether) 天。不理也不会死。") {
+                    ProgressView(value: Double(c.affection), total: 100).frame(width: 90)
+                }
+                RowDivider()
+                GRow(title: "今天", subtitle: CompanionPolicy.todayDetail(c.today)) {
+                    Text(CompanionPolicy.todayCaption(c.today)).foregroundStyle(.secondary)
+                }
+                RowDivider()
+                GRow(title: "偶尔撒娇", subtitle: "关了就不再主动冒一句。摸摸和心情还在") {
+                    Toggle("", isOn: Binding(get: { state.config.companionChat }, set: { state.setCompanionChat($0) }))
+                        .labelsHidden().toggleStyle(.switch)
+                }
+            }
+            if !c.diary.isEmpty {
+                SectionHeader("它记下的几天")
+                GroupCard {
+                    ForEach(Array(c.diary.prefix(5).enumerated()), id: \.element.id) { pair in
+                        if pair.offset > 0 { RowDivider() }
+                        GRow(title: CompanionPolicy.displayDay(pair.element.day), subtitle: pair.element.line) {
+                            EmptyView()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - 记忆 · 隐私
 struct MemoryPane: View {
     @ObservedObject var state: AppState
@@ -204,25 +243,20 @@ struct MemoryPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader("记忆 · 隐私")
+            SectionHeader("记忆")
             GroupCard {
-                GRow(title: "隐身模式", subtitle: "暂停观察与主动打扰，本次不记新记忆") {
-                    Toggle("", isOn: Binding(get: { state.config.stealth }, set: { state.setStealth($0) }))
-                        .labelsHidden().toggleStyle(.switch)
-                }
-                RowDivider()
-                GRow(title: "自动记住对话", subtitle: "开启后，才会把最近对话发送给模型提炼长期记忆；默认关闭") {
+                GRow(title: "自动记住对话", subtitle: "把最近对话发给你的模型提炼。默认关，随时可删") {
                     Toggle("", isOn: Binding(get: { state.config.autoMemory }, set: { state.setAutoMemory($0) }))
                         .labelsHidden().toggleStyle(.switch)
                 }
             }
-            Text("所有记忆只存在你本地（Application Support），随时可删。开启自动记忆时，提炼所需的最近对话会发送给你选择的模型。")
-                .font(.caption).foregroundStyle(.secondary)
 
             SectionHeader("它记住的")
             if state.memories.isEmpty {
                 GroupCard {
-                    GRow(title: "还没有记忆", subtitle: state.config.autoMemory ? "平时聊天会按你的设置自动提炼，也可在下面手动添加" : "在下面手动加一条；自动记忆目前已关闭") { EmptyView() }
+                    GRow(title: "还没有记忆", subtitle: state.config.autoMemory ? "平时聊天会按你的设置自动提炼，也可在下面手动添加" : "在下面手动加一条；自动记忆目前已关闭") {
+                        Text("空").foregroundStyle(.secondary)
+                    }
                 }
             } else {
                 GroupCard {

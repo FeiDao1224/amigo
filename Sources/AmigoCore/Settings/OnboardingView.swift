@@ -9,14 +9,14 @@ struct OnboardingView: View {
         VStack(spacing: 16) {
             Image(systemName: "pawprint.circle.fill").font(.system(size: 54)).foregroundStyle(Color.orange.gradient)
             Text("欢迎养一只 Amigo").font(.title2.bold())
-            Text("一只住在你桌面、会观察你状态、陪你干活、还被你调教性格的桌面搭子。")
+            Text("一只住在桌面上的情绪陪伴。摸摸、喂一口会开心；冷落久了会想你。不干活、也不催你，除非你打开督促。")
                 .font(.system(size: 13)).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).frame(maxWidth: 380)
 
             VStack(alignment: .leading, spacing: 12) {
-                step("1", "直接开玩", "内置咕咕嘎嘎和草地牛都自带动作，不配模型也能拖着跑")
-                step("2", "配一个大模型（可选）", "填你的 API 端点 + Key，它才能聊天、生成新形象和新动作")
-                step("3", "调教性格 + 交互", "写它的人设，设定点击 / 拖动 / 对话触发什么动作")
+                step("1", "直接开玩", "内置形象就能拖。右键摸摸或喂一口，不配模型也能陪着")
+                step("2", "配一个大模型（可选）", "填你的 API 端点 + Key，它才能真聊天、生成新形象和新动作")
+                step("3", "调性格", "写它的人设。它会自己记一句「今天你来过」；督促是可选的")
             }.frame(maxWidth: 380)
 
             HStack(spacing: 12) {

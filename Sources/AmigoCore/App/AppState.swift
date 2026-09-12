@@ -6,6 +6,7 @@ final class AppState: ObservableObject {
     @Published var config: Config
     @Published var memories: [Memory] = []
     @Published var toast = ""                      // 顶部通知(错误等)
+    @Published var settingsPage = "companion"     // 设置侧栏当前页，只活在进程里
     private var toastSeq = 0
     func showToast(_ s: String) {
         toast = s; toastSeq += 1; let seq = toastSeq
@@ -23,6 +24,28 @@ final class AppState: ObservableObject {
         migrateProviderSecretsBack()
         migrateCharacters()
         migrateCompactPetWindow()
+        if !config.seededCompanionMenu {
+            if !config.rightMenuItems.contains("feed") {
+                if let i = config.rightMenuItems.firstIndex(of: "speak") {
+                    config.rightMenuItems.insert("feed", at: i + 1)
+                } else {
+                    config.rightMenuItems.insert("feed", at: 0)
+                }
+            }
+            config.seededCompanionMenu = true
+        }
+        if !config.seededDiaryMenu {
+            if !config.rightMenuItems.contains("diary") {
+                if let i = config.rightMenuItems.firstIndex(of: "feed") {
+                    config.rightMenuItems.insert("diary", at: i + 1)
+                } else if let i = config.rightMenuItems.firstIndex(of: "speak") {
+                    config.rightMenuItems.insert("diary", at: i + 1)
+                } else {
+                    config.rightMenuItems.insert("diary", at: 0)
+                }
+            }
+            config.seededDiaryMenu = true
+        }
         ConfigStore.save(config)
     }
 
@@ -234,6 +257,7 @@ final class AppState: ObservableObject {
     func forgetMe() { clearMemories() }
     /// 清空全部数据：记忆 / 自定义形象 / 性格（模型 Key 在「模型」页单独管理）
     func wipeAllData() {
+        batchTask?.cancel()
         let fm = FileManager.default
         try? fm.removeItem(at: dataDir.appendingPathComponent("memories.json"))
         try? fm.removeItem(at: dataDir.appendingPathComponent("chat.json"))
@@ -242,7 +266,9 @@ final class AppState: ObservableObject {
         memories = []
         config.personas = [:]; config.customActions = []; config.customPets = []
         config.character = "penguin"; config.activeAction = "idle"
+        config.companion = CompanionSnapshot()
         config.petX = nil; config.petY = nil; persist()
+        onCompanionChanged?(config.companion)
         PetImages.installDefaults()          // 恢复内置形象，避免清空后空白
         PetImages.clearCache(); onCharacterChanged?("penguin")
         onLocalContentWiped?()
@@ -320,6 +346,7 @@ final class AppState: ObservableObject {
         actionStatus[def.id] = "generating"
         do {
             _ = try await SpriteGen.generate(actionId: def.id, prompt: def.prompt, character: character, referencePNG: ref, baseUrl: p.baseUrl, apiKey: p.apiKey)
+            guard !Task.isCancelled else { actionStatus[def.id] = "cancelled"; return }
             actionStatus[def.id] = "success"
             onGeneratedFramesChanged?()
         } catch {
@@ -382,9 +409,32 @@ final class AppState: ObservableObject {
 
     // 点击行为可配置：功能 + 播放某动作(act:<id>)
     static let clickFunctions: [(String, String)] = [
-        ("none", "无"), ("speak", "摸头 / 说一句"), ("chat", "打开对话"),
+        ("none", "无"), ("speak", "摸摸 / 说一句"), ("feed", "喂一口"),
+        ("diary", "今天来过没有"), ("chat", "打开对话"),
         ("settings", "打开设置"), ("hide", "隐藏宠物"), ("menu", "弹出菜单")
     ]
+    func setCompanionChat(_ v: Bool) { config.companionChat = v; persist() }
+
+    var onCompanionChanged: ((CompanionSnapshot) -> Void)?
+
+    @discardableResult
+    func noteCompanion(_ event: CompanionEvent, now: Date = Date(), idleSeconds: Double = 0) -> String? {
+        let hour = Calendar.current.component(.hour, from: now)
+        let (next, line) = CompanionPolicy.apply(config.companion, event: event, now: now, hour: hour, idleSeconds: idleSeconds)
+        if next != config.companion {
+            config.companion = next
+            persist()
+            onCompanionChanged?(next)
+        }
+        return line
+    }
+
+    func companionHello() -> String {
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        _ = noteCompanion(.tick, now: now)
+        return CompanionPolicy.hello(config.companion, now: now, hour: hour)
+    }
     var clickOptions: [(String, String)] {
         AppState.clickFunctions + allActions.map { ("act:" + $0.id, "播放 · " + $0.title) }
     }
@@ -422,9 +472,18 @@ final class AppState: ObservableObject {
     /// 注入进宠物的 system prompt：让它"记得你"
     func memoryContext() -> String {
         let longs = memories.filter { $0.longTerm }
-        guard !longs.isEmpty else { return "" }
-        return "关于主人你已经知道这些（自然地参考，别生硬复述）：\n"
-            + longs.prefix(30).map { "- [\($0.category)] \($0.content)" }.joined(separator: "\n")
+        var parts: [String] = []
+        let c = config.companion
+        parts.append("你现在心情是「\(c.mood.title)」，亲密度 \(c.affection)/100，已经陪了 \(c.daysTogether) 天。自然地带一点这种心情，别报数字。")
+        parts.append(CompanionPolicy.todayCaption(c.today) + " " + CompanionPolicy.todayDetail(c.today))
+        if let d = c.diary.first {
+            parts.append("你最近在日记里写过：「\(d.line)」带一点这种感觉就好，别朗读日记。")
+        }
+        if !longs.isEmpty {
+            parts.append("关于主人你已经知道这些（自然地参考，别生硬复述）：\n"
+                + longs.prefix(30).map { "- [\($0.category)] \($0.content)" }.joined(separator: "\n"))
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     func setPetPosition(_ p: CGPoint) { config.petX = Double(p.x); config.petY = Double(p.y); persist() }

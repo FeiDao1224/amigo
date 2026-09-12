@@ -1,12 +1,15 @@
 import AppKit
 
-/// 行为驱动闭环：读系统闲置 / 活跃时长 + 作息 → 让桌宠主动冒泡督促。
-/// 防打扰（PRD §11）：只在你在电脑前时冒泡；全局最短间隔；每条规则各自冷却。
+/// 两套主动冒泡：陪伴撒娇，以及可选的久坐/熬夜督促。
+/// 防打扰：只在你在电脑前时冒泡；全局最短间隔；各规则自己冷却。
 @MainActor
 final class BehaviorEngine {
     private let runtime: PetRuntime
     var isEnabled: () -> Bool = { true }
+    var isCompanionEnabled: () -> Bool = { true }   // 隐身以外都记账：心情、亲密度
+    var isCompanionChat: () -> Bool = { true }      // 才主动冒一句
     var isPetVisible: () -> Bool = { true }
+    var onCompanionTick: ((_ idleSeconds: Double, _ returned: Bool) -> String?)?
 
     private var timer: Timer?
     private var activeMinutes = 0.0
@@ -22,25 +25,44 @@ final class BehaviorEngine {
         }
     }
 
-    private func idleSeconds() -> Double {
-        let types: [CGEventType] = [.mouseMoved, .keyDown, .leftMouseDown, .scrollWheel]
-        return types.map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? 0
-    }
-
     private func tick() {
-        guard isEnabled() else { activeMinutes = 0; wasAway = false; return }
-        let idle = idleSeconds()
+        let enabled = isEnabled()
+        let tracking = isCompanionEnabled()
+        let chatOn = isCompanionChat()
+        if !enabled && !tracking { activeMinutes = 0; wasAway = false; return }
+        let idle = SystemInfo.idleSeconds()
         if idle < 60 { activeMinutes += 0.5 }
         if idle > 300 { activeMinutes = 0; wasAway = true }
 
-        guard isEnabled(), isPetVisible(), idle < 60 else { return }
+        if tracking {
+            _ = onCompanionTick?(idle, false)
+        }
+
+        guard isPetVisible(), idle < 60 else { return }
         guard Date().timeIntervalSince(lastProactive) > 18 * 60 else { return }
 
-        let hour = Calendar.current.component(.hour, from: Date())
         if wasAway {
             wasAway = false
-            fire("back", situation: "主人刚从离开中回到电脑前", fallback: "哟，回来啦～", 30); return
+            if chatOn, let line = onCompanionTick?(idle, true), !line.isEmpty {
+                lastProactive = Date()
+                runtime.showBubble(line)
+                return
+            }
+            if enabled {
+                fire("back", situation: "主人刚从离开中回到电脑前", fallback: "哟，回来啦～", 30)
+            }
+            return
         }
+
+        if chatOn, Date().timeIntervalSince(lastFired["murmur"] ?? .distantPast) > 22 * 60 {
+            lastFired["murmur"] = Date()
+            lastProactive = Date()
+            runtime.showBubble(CompanionPolicy.murmur(runtime.mood))
+            return
+        }
+
+        guard enabled else { return }
+        let hour = Calendar.current.component(.hour, from: Date())
         if hour >= 23 || hour < 5 {
             fire("late", situation: "已经深夜 \(hour) 点了，主人还在用电脑", fallback: "都这点了还不睡？我先困了……", 60); return
         }

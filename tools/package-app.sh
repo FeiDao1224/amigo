@@ -5,8 +5,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/dist/Amigo.app"
 BIN="$ROOT/.build/release/Amigo"
 [ -f "$BIN" ] || { echo "先 swift build -c release"; exit 1; }
-# 版本号唯一来源：Sources/Amigo/AppInfo.swift
-VERSION="$(sed -n 's/.*static let version = "\([0-9][0-9.]*\)".*/\1/p' "$ROOT/Sources/Amigo/AppInfo.swift")"
+# 版本号唯一来源：Sources/AmigoCore/App/AppInfo.swift
+VERSION="$(sed -n 's/.*static let version = "\([0-9][0-9.]*\)".*/\1/p' "$ROOT/Sources/AmigoCore/App/AppInfo.swift")"
 [ -n "$VERSION" ] || { echo "读不到 AppInfo.version"; exit 1; }
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Amigo"

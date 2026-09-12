@@ -22,6 +22,12 @@ enum SystemInfo {
         return f.localizedName
     }
 
+    /// 键鼠空闲秒数。桌宠动作与主动催促共用，避免两处各写一份。
+    static func idleSeconds() -> Double {
+        let types: [CGEventType] = [.mouseMoved, .keyDown, .leftMouseDown, .scrollWheel]
+        return types.map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? 0
+    }
+
     static func memoryUsedPercent() -> Int? {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)

@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             PetImages.clearCache()
             self?.runtime.setCharacter(id)
         }
+        state.onCompanionChanged = { [weak self] snap in self?.runtime.applyCompanion(snap) }
+        runtime.applyCompanion(state.config.companion)
         runtime.nudgeUseLLM = { [weak state] in state?.config.proactiveLLM ?? false }
         runtime.senseFrontApp = { [weak state] in (state?.config.senseFrontApp ?? true) && !(state?.config.stealth ?? false) }
 
@@ -62,6 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.runtime.showBubble(r)
         }
         chat.onInferred = { [weak state] items in state?.addInferred(items) }
+        chat.onUserMessage = { [weak self] in
+            _ = self?.state.noteCompanion(.chat)
+            self?.runtime.burstHearts()
+        }
         chat.isStealth = { [weak state] in state?.config.stealth ?? false }
         chat.shouldInferMemory = { [weak state] in state?.config.autoMemory ?? false }
         state.onMemoryInvalidated = { [weak self] in self?.chat.invalidateMemoryRequests() }
@@ -85,14 +91,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupRightClick()
         startCursorTracking()
         maybeMorningGreeting()
-        // 启动就冒个云气泡，让你立刻看到新气泡 + 知道长按能说话
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            self?.runtime.showBubble("长按我，就能跟我说话～")
-        }
 
         let e = BehaviorEngine(runtime: runtime)
         e.isEnabled = { [weak self] in (self?.state.config.proactive ?? false) && !(self?.state.config.stealth ?? false) }
+        e.isCompanionEnabled = { [weak self] in !(self?.state.config.stealth ?? false) }
+        e.isCompanionChat = { [weak self] in (self?.state.config.companionChat ?? true) && !(self?.state.config.stealth ?? false) }
         e.isPetVisible = { [weak self] in self?.petPanel?.isVisible ?? false }
+        e.onCompanionTick = { [weak self] idle, returned in
+            guard let self else { return nil }
+            let event: CompanionEvent = returned ? .returned : .tick
+            return self.state.noteCompanion(event, idleSeconds: idle)
+        }
         e.start()
         engine = e
 
@@ -168,7 +177,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.runtime.chatting = false            // 收起输入框
                 self.runtime.waitingReply = true         // 进入"打电话"等回复
                 self.runtime.showBubble("…", sticky: true)
-                self.chat.send(text)
+                if !self.chat.send(text) {
+                    self.runtime.waitingReply = false
+                    self.runtime.showBubble("")
+                }
             },
             onTrigger: { [weak self] t in self?.dispatchClick(t) }
         )
@@ -269,22 +281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // 行为驱动：对话/等回复→打电话；拖动→走(拖越快播越快)；用电脑→工作；久闲→睡觉；否则待着
     private func updateBehaviorAction() {
-        if let until = runtime.oneShotUntil {                // 点击触发的一次性动作优先
-            setSpeed(1); if Date() < until { runtime.showAction(runtime.oneShotKey); return }
-            runtime.oneShotUntil = nil
-        }
-        if runtime.waitingReply || runtime.chatting {
-            setSpeed(1); runtime.facingLeft = false
-            runtime.showAction(state.config.mapChat); return
-        }
-        guard state.config.behaviorDriven, !state.config.stealth else {
-            setSpeed(1); runtime.facingLeft = false; runtime.showAction(state.config.activeAction); return
-        }
-        if dragOffset != nil {
-            setSpeed(min(2.4, max(1.0, dragSpeed / 260)))    // 拖得越快，同一套「走」帧播得越快
-            runtime.showAction(state.config.mapDrag, fallbackMotion: 1)
-        } else {
-            setSpeed(1); runtime.facingLeft = false
+        if shouldSampleEnvironment() {
             let now = Date().timeIntervalSinceReferenceDate
             if state.config.senseFrontApp, now - lastFrontCheck > 0.5 {
                 frontActive = SystemInfo.frontApp() != nil
@@ -292,19 +289,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             } else if !state.config.senseFrontApp {
                 frontActive = false
             }
-            if now - lastIdleCheck > 1.0 { idleLong = idleSeconds() > 180; lastIdleCheck = now }   // 久闲判定
-            if idleLong { runtime.showAction("sleep", fallbackMotion: 0) }   // 闲置>3分钟→睡觉
-            else if frontActive { runtime.showAction("work") }
-            else { runtime.showAction(state.config.activeAction) }        // 否则默认动作
+            if now - lastIdleCheck > 1.0 { idleLong = SystemInfo.idleSeconds() > 180; lastIdleCheck = now }
         }
+        let out = PetActionPolicy.choose(.init(
+            now: Date(),
+            oneShotKey: runtime.oneShotKey,
+            oneShotUntil: runtime.oneShotUntil,
+            waitingReply: runtime.waitingReply,
+            chatting: runtime.chatting,
+            dragging: dragOffset != nil,
+            dragSpeed: Double(dragSpeed),
+            behaviorDriven: state.config.behaviorDriven,
+            stealth: state.config.stealth,
+            idleLong: idleLong,
+            frontActive: frontActive,
+            mapChat: state.config.mapChat,
+            mapDrag: state.config.mapDrag,
+            activeAction: state.config.activeAction
+        ))
+        if out.clearOneShot { runtime.oneShotUntil = nil }
+        setSpeed(out.speed)
+        if out.resetFacing { runtime.facingLeft = false }
+        runtime.showAction(out.action, fallbackMotion: out.fallbackMotion)
+    }
+
+    /// 只有真正走到「闲置/前台」分支时才查系统，和原先短路顺序一致。
+    private func shouldSampleEnvironment() -> Bool {
+        if let until = runtime.oneShotUntil, Date() < until { return false }
+        if runtime.waitingReply || runtime.chatting { return false }
+        if !state.config.behaviorDriven || state.config.stealth { return false }
+        if dragOffset != nil { return false }
+        return true
     }
     private var idleLong = false
     private var lastIdleCheck: TimeInterval = 0
     private func setSpeed(_ v: Double) { if abs(runtime.speedFactor - v) > 0.001 { runtime.speedFactor = v } }
-    private func idleSeconds() -> Double {
-        [CGEventType.mouseMoved, .keyDown, .leftMouseDown, .scrollWheel]
-            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? 0
-    }
     private var frontActive = false
     private var lastFrontCheck: TimeInterval = 0
 
@@ -360,7 +379,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func executeClick(_ key: String) {
         switch key {
         case "", "none": break
-        case "speak":    runtime.speak()
+        case "speak":
+            runtime.speak(fallback: state.noteCompanion(.pet))
+        case "feed":
+            runtime.burstHearts()
+            runtime.oneShot("idle")
+            if let line = state.noteCompanion(.feed) { runtime.showBubble(line) }
+        case "diary":
+            runtime.showBubble(CompanionPolicy.diarySpeak(state.config.companion))
         case "chat":     startInlineChat()
         case "settings": openSettings()
         case "hide":     togglePet()
@@ -383,6 +409,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func rightMenuTitle(_ id: String) -> String? {
         switch id {
         case "speak": return "摸摸头"
+        case "feed": return "喂一口"
+        case "diary": return "今天来过没有"
         case "chat": return "打开对话"
         case "settings": return "打开设置…"
         case "hide": return "显示 / 隐藏宠物"
@@ -406,19 +434,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // MARK: 晨间彩蛋
+    // MARK: 晨间 / 重逢
     private func maybeMorningGreeting() {
-        let hour = Calendar.current.component(.hour, from: Date())
-        guard (5...10).contains(hour) else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
-            self?.runtime.morningGreeting()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self else { return }
+            if !self.state.config.onboarded {
+                self.runtime.showBubble("长按我，就能跟我说话～")
+                return
+            }
+            self.runtime.showBubble(self.state.companionHello())
         }
     }
 
     // MARK: 设置窗（毛玻璃）
     @objc private func openSettings() {
+        showSettings(page: nil)
+    }
+
+    func showSettings(page: String?) {
+        if let page { state.settingsPage = page }
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 520),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.title = "Amigo · 设置"
@@ -446,7 +482,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden
         w.isReleasedWhenClosed = false; w.delegate = self
         let view = OnboardingView(
-            onConfigureModel: { [weak self] in self?.state.markOnboarded(); self?.onboardingWindow?.close(); self?.openSettings() },
+            onConfigureModel: { [weak self] in
+                self?.state.markOnboarded()
+                self?.onboardingWindow?.close()
+                self?.showSettings(page: SettingsPage.model.rawValue)
+            },
             onDone: { [weak self] in self?.state.markOnboarded(); self?.onboardingWindow?.close() }
         )
         let host = NSHostingView(rootView: view)

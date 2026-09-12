@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ChatView: View {
     @ObservedObject var session: ChatSession
@@ -11,7 +10,7 @@ struct ChatView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         if session.messages.isEmpty {
-                            Text("随便聊点什么～它会慢慢记住你。也可以把文件拖进来让它帮你看。")
+                            Text("随便聊点什么～它会慢慢记住你。")
                                 .font(.caption).foregroundStyle(.secondary).padding(.top, 10)
                         }
                         ForEach(session.messages) { m in

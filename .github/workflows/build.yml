@@ -17,6 +17,9 @@ jobs:
       - name: Swift 版本
         run: swift --version
 
+      - name: 测试
+        run: swift test
+
       - name: 编译 (release)
         run: swift build -c release
 

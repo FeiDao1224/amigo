@@ -117,11 +117,13 @@ struct ThoughtDots: View {
 // 设置：区块标题
 struct SectionHeader: View {
     let text: String
-    init(_ t: String) { text = t }
+    var pageTitle: Bool = false
+    init(_ t: String, page: Bool = false) { text = t; pageTitle = page }
     var body: some View {
-        Text(text).font(.system(size: 20, weight: .bold))
+        Text(text)
+            .font(.system(size: pageTitle ? 20 : 13, weight: .semibold))
+            .foregroundStyle(pageTitle ? Color.primary : Color.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 8).padding(.bottom, 4)
     }
 }
 
@@ -130,6 +132,7 @@ struct GroupCard<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(spacing: 0) { content }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.06)))
     }
@@ -146,9 +149,10 @@ struct GRow<Trailing: View>: View {
                 Text(title).font(.system(size: 13, weight: .medium))
                 if let s = subtitle {
                     Text(s).font(.system(size: 11)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
             trailing
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
@@ -160,32 +164,25 @@ struct RowDivider: View {
     var body: some View { Divider().padding(.leading, 14).opacity(0.5) }
 }
 
-// 侧栏一项（彩色图标 + 标题 + 副标题）
+// 侧栏一项：跟系统设置一样，一行图标 + 标题
 struct SidebarRow: View {
     let title: String
-    let subtitle: String
     let icon: String
-    let color: Color
     let selected: Bool
     var body: some View {
-        HStack(spacing: 12) {
+        Label {
+            Text(title).font(.system(size: 13, weight: selected ? .semibold : .regular))
+        } icon: {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .background(color.gradient, in: RoundedRectangle(cornerRadius: 9))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .semibold))
-                Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 0)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                .frame(width: 18)
         }
-        .padding(.horizontal, 11)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 11)
-                .fill(selected ? Color.primary.opacity(0.10) : Color.clear)
-        )
-        .contentShape(Rectangle())
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 7))
+        .contentShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }
