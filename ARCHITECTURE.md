@@ -7,7 +7,7 @@
 
 ## 速览
 
-- **是什么**：原生 macOS 桌面宠物。常驻桌面、被你的真实操作驱动切换动作，可以接你自己的大模型聊天、生成形象与动作。
+- **是什么**：原生 macOS 桌面宠物，定位情绪陪伴（心情 / 亲密度 / 日记）。可以接你自己的大模型聊天、生成形象与动作；久坐督促是可选的。
 - **技术栈**：Swift + AppKit + SwiftUI，SwiftPM 包（**没有 Xcode 工程**），目标 macOS 13+。库 target `AmigoCore` + 可执行 target `Amigo` + 测试 `AmigoCoreTests`。
 - **规模**：核心库按职责分目录，约 3800 行业务代码。
 - **数据**：全部只在本机 `~/Library/Application Support/Amigo/`（含 API Key）。不上传任何服务器。
@@ -42,7 +42,7 @@ Sources/Amigo/            可执行入口（main.swift → AmigoApp.start）
 Sources/AmigoCore/        全部业务与 UI（可被测试依赖）
   App/                    启动、AppDelegate、AppState、版本号
   Models/                 Config / Provider / 人设 / 记忆
-  Pet/                    运行时、视图、跟随、行为、动作决策
+  Pet/                    运行时、视图、跟随、陪伴、行为、动作决策
   Chat/                   会话与聊天窗
   Generation/             生图切帧
   LLM/                    聊天 API、合规、系统信息
@@ -51,7 +51,7 @@ Sources/AmigoCore/        全部业务与 UI（可被测试依赖）
 Tests/AmigoCoreTests/     纯逻辑表征测试
 Assets/pets/              随包内置形象 PNG + 动作帧（penguin / cow）
 tools/                    打包脚本与手动工具
-Docs/                     动画系统说明
+Docs/                     动画系统说明（PetAnimationSystem.md）
 .github/workflows/        build.yml（CI）
 AppIcon.icns              App 图标
 dist/                     打包产物（已 gitignore）
@@ -92,7 +92,8 @@ dist/                     打包产物（已 gitignore）
 - `Pet/PetView.swift` — 宠物视图：气泡 / 输入框 + 帧动画 + 点击 / 双击 / 长按 / 拖动手势。顶部的 `PetLayout` 定义窗口与精灵尺寸。
 - `Pet/Components.swift` — 毛玻璃、`PetMotion` / `MoveMotion`（无生成帧时的程序位移兜底）、气泡形状、`SectionHeader` 等。
 - `Pet/WindowFollower.swift` — 贴住当前活动窗口右下角。只读 `CGWindowList` 取窗口边框，不需要辅助功能权限。
-- `Pet/BehaviorEngine.swift` — 30s 定时的主动督促引擎（久坐 / 熬夜 / 离开归来 / 专注）。**只管主动冒泡**；切动作在 `PetActionPolicy`，点击穿透在 AppDelegate。
+- `Pet/CompanionFeelings.swift` — 心情、亲密度、今天计数、日记（`CompanionPolicy`，可单测）。
+- `Pet/BehaviorEngine.swift` — 30s 定时：陪伴记账 / 偶尔撒娇，以及可选的久坐、熬夜、归来督促。切动作在 `PetActionPolicy`，点击穿透在 AppDelegate。
 - `Pet/PetActionPolicy.swift` — 根据对话 / 隐身 / 拖动 / 闲置决定播哪套动作（可单测）。
 
 ### 形象 / 动作生成
@@ -109,8 +110,8 @@ dist/                     打包产物（已 gitignore）
 - `LLM/SystemInfo.swift` — 实时状态（时间 / 内存 / 前台 app）+ 共用的 `idleSeconds()`；前台 app 部分受 `senseFrontApp` 开关控制。
 
 ### 设置界面
-- `Settings/SettingsView.swift` — 设置主壳：左侧栏（通用 / 模型 / 形象 / 性格 / 交互 / 关于）+ 右侧内容路由。
-- `Settings/SettingsPanes.swift` — `ModelPane`、`PersonaPane`、`MemoryPane`。
+- `Settings/SettingsView.swift` — 设置主壳：左侧栏（陪伴 / 形象 / 交互 / 模型 / 通用 / 关于）+ 右侧内容路由。
+- `Settings/SettingsPanes.swift` — `ModelPane`、`CompanionPane`、`PersonaPane`、`MemoryPane`。
 - `Settings/PetSettingsCards.swift` — 形象页卡片：形象选择器、`ActionRow` / `ActionPreview`、`NewActionCard`、`CustomPetCard`。
 - `Settings/OnboardingView.swift` — 首启引导。
 
@@ -168,10 +169,7 @@ dist/                     打包产物（已 gitignore）
 - 形象相似度只靠提示词，没有二次校验。
 
 **工程**
-- 已有 `AmigoCoreTests`（合规、导入 Provider、Config 容错、记忆解析、动作决策）。`SpriteGen` 切帧对齐、`WindowFollower` 落点仍未覆盖。
+- 已有 `AmigoCoreTests`（合规、导入 Provider、Config 容错、记忆解析、动作决策、陪伴政策）。`SpriteGen` 切帧对齐、`WindowFollower` 落点仍未覆盖。
 - 网络错误与非标准返回的兜底可以更全（`ImageGen.sanitize` 是起点）。
 - `sleep` 动作没有随包内置帧，需要用户自己生成。
-
-**体验**
-- 设置各面板的信息密度与一致性可以整体过一遍。
 - 没有做过系统性的深色模式与无障碍适配审查。
